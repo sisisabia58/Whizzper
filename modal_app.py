@@ -3,8 +3,10 @@ import os
 import io
 import base64
 import tempfile
+import traceback
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
+from fastapi import HTTPException
 
 # 1. Define Modal App
 app = modal.App("whizzper-backend")
@@ -45,7 +47,7 @@ class TranscriptionRequest(BaseModel):
     is_translate: Optional[bool] = False
     beam_size: Optional[int] = 5
     compute_type: Optional[str] = "float16"
-    vad_filter: Optional[str] = "False"  # String representation or bool
+    vad_filter: Optional[str] = "False"
     is_diarize: Optional[str] = "False"
     hf_token: Optional[str] = ""
     is_separate_bgm: Optional[str] = "False"
@@ -90,7 +92,7 @@ def transcribe_endpoint(req: TranscriptionRequest) -> Dict[str, Any]:
     """
     Web endpoint for running Whisper transcription on GPU via Modal.
     """
-    from modules.whisper.whisper_factory import WhisperFactory
+    from modules.whisper.faster_whisper_inference import FasterWhisperInference
     from modules.whisper.data_classes import (
         TranscriptionPipelineParams, WhisperParams, VadParams,
         DiarizationParams, BGMSeparationParams
@@ -110,13 +112,12 @@ def transcribe_endpoint(req: TranscriptionRequest) -> Dict[str, Any]:
         uvr_dir = os.path.join(CACHE_DIR, "uvr")
         out_dir = os.path.join(CACHE_DIR, "outputs")
 
-        # 3. Create pipeline instance
-        pipeline = WhisperFactory.create_whisper_inference(
-            whisper_type=req.whisper_type or "faster-whisper",
-            faster_whisper_model_dir=model_dir,
+        # 3. Create GPU inference pipeline instance directly
+        pipeline = FasterWhisperInference(
+            model_dir=model_dir,
+            output_dir=out_dir,
             diarization_model_dir=diar_dir,
-            uvr_model_dir=uvr_dir,
-            output_dir=out_dir
+            uvr_model_dir=uvr_dir
         )
 
         # 4. Construct pipeline params
@@ -171,6 +172,10 @@ def transcribe_endpoint(req: TranscriptionRequest) -> Dict[str, Any]:
             "segments": formatted_segments,
             "elapsed_time": elapsed_time
         }
+    except Exception as e:
+        tb = traceback.format_exc()
+        print(f"Error during Modal GPU inference:\n{tb}")
+        raise HTTPException(status_code=500, detail=f"GPU Inference Error: {str(e)}")
     finally:
         if os.path.exists(tmp_audio_path):
             os.remove(tmp_audio_path)
