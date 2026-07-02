@@ -330,13 +330,18 @@ class App:
             logger.info(f"The directory path {folder_path} has newly created.")
 
 
+env_port = os.environ.get("PORT") or os.environ.get("SERVER_PORT")
+default_port = int(env_port) if env_port and env_port.isdigit() else None
+default_host = "0.0.0.0" if os.environ.get("PORT") else None
+default_inbrowser = False if os.environ.get("PORT") else True
+
 parser = argparse.ArgumentParser()
 parser.add_argument('--whisper_type', type=str, default=WhisperImpl.FASTER_WHISPER.value,
                     choices=[item.value for item in WhisperImpl],
                     help='A type of the whisper implementation (Github repo name)')
 parser.add_argument('--share', type=str2bool, default=False, nargs='?', const=True, help='Gradio share value')
-parser.add_argument('--server_name', type=str, default=None, help='Gradio server host')
-parser.add_argument('--server_port', type=int, default=None, help='Gradio server port')
+parser.add_argument('--server_name', type=str, default=default_host, help='Gradio server host')
+parser.add_argument('--server_port', type=int, default=default_port, help='Gradio server port')
 parser.add_argument('--root_path', type=str, default=None, help='Gradio root path')
 parser.add_argument('--username', type=str, default=None, help='Gradio authentication username')
 parser.add_argument('--password', type=str, default=None, help='Gradio authentication password')
@@ -345,7 +350,7 @@ parser.add_argument('--colab', type=str2bool, default=False, nargs='?', const=Tr
 parser.add_argument('--api_open', type=str2bool, default=False, nargs='?', const=True,
                     help='Enable api or not in Gradio')
 parser.add_argument('--allowed_paths', type=str, default=None, help='Gradio allowed paths')
-parser.add_argument('--inbrowser', type=str2bool, default=True, nargs='?', const=True,
+parser.add_argument('--inbrowser', type=str2bool, default=default_inbrowser, nargs='?', const=True,
                     help='Whether to automatically start Gradio app or not')
 parser.add_argument('--ssl_verify', type=str2bool, default=True, nargs='?', const=True,
                     help='Whether to verify SSL or not')
