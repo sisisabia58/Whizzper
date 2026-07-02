@@ -85,7 +85,7 @@ class TranscriptionResponse(BaseModel):
     volumes={CACHE_DIR: models_volume},
     secrets=[modal.Secret.from_name("whizzper-secrets")] if os.environ.get("USE_MODAL_SECRET") else []
 )
-@modal.web_endpoint(method="POST")
+@modal.fastapi_endpoint(method="POST")
 def transcribe_endpoint(req: TranscriptionRequest) -> Dict[str, Any]:
     """
     Web endpoint for running Whisper transcription on GPU via Modal.
