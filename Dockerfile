@@ -25,9 +25,6 @@ WORKDIR /Whisper-WebUI
 COPY . .
 COPY --from=builder /Whisper-WebUI/venv /Whisper-WebUI/venv
 
-VOLUME [ "/Whisper-WebUI/models" ]
-VOLUME [ "/Whisper-WebUI/outputs" ]
-
 ENV PATH="/Whisper-WebUI/venv/bin:$PATH"
 ENV LD_LIBRARY_PATH=/Whisper-WebUI/venv/lib64/python3.11/site-packages/nvidia/cublas/lib:/Whisper-WebUI/venv/lib64/python3.11/site-packages/nvidia/cudnn/lib
 
