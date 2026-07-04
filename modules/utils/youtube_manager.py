@@ -9,8 +9,10 @@ if os.environ.get("YOUTUBE_COOKIES"):
         fixed_lines = []
         for line in raw_cookies.splitlines():
             line_stripped = line.strip()
-            if not line_stripped or line_stripped.startswith("#"):
-                fixed_lines.append(line)
+            if not line_stripped:
+                continue
+            if line_stripped.startswith("#"):
+                fixed_lines.append(line_stripped)
                 continue
             parts = line_stripped.split()
             if len(parts) >= 7:
@@ -18,16 +20,18 @@ if os.environ.get("YOUTUBE_COOKIES"):
                 reconstructed = "\t".join(parts[:6] + [" ".join(parts[6:])])
                 fixed_lines.append(reconstructed)
             else:
-                fixed_lines.append(line)
+                fixed_lines.append(line_stripped)
         
         content = "\n".join(fixed_lines)
         if not content.startswith("# Netscape HTTP Cookie File"):
             content = "# Netscape HTTP Cookie File\n" + content
             
-        with open("cookies.txt", "w", encoding="utf-8") as f:
+        cookies_path = os.path.abspath("cookies.txt")
+        with open(cookies_path, "w", encoding="utf-8") as f:
             f.write(content)
+        print(f"[YoutubeManager] Successfully generated cookies.txt at {cookies_path} with {len(fixed_lines)} lines.")
     except Exception as e:
-        print(f"Error writing YOUTUBE_COOKIES environment variable to cookies.txt: {e}")
+        print(f"[YoutubeManager] Error writing YOUTUBE_COOKIES environment variable to cookies.txt: {e}")
 
 class YoutubeData:
     def __init__(self, title, thumbnail_url, description, url):
@@ -41,7 +45,6 @@ def get_ytdata(link: str) -> YoutubeData:
         'nocheckcertificate': True,
         'quiet': True,
         'no_warnings': True,
-        'format': 'bestaudio/best',
     }
     cookie_paths = ["cookies.txt", os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "cookies.txt")]
     for path in cookie_paths:
