@@ -329,6 +329,7 @@ class BaseTranscriptionPipeline(ABC):
             return result_str, result_file_path
 
         except Exception as e:
+            logger.error("Error transcribing file:", exc_info=True)
             raise RuntimeError(f"Error transcribing file: {e}") from e
 
     def transcribe_mic(self,
@@ -391,6 +392,7 @@ class BaseTranscriptionPipeline(ABC):
             result_str = f"Done in {self.format_time(time_for_task)}! Subtitle file is in the outputs folder.\n\n{subtitle}"
             return result_str, file_path
         except Exception as e:
+            logger.error("Error transcribing mic:", exc_info=True)
             raise RuntimeError(f"Error transcribing mic: {e}") from e
 
     def transcribe_youtube(self,
@@ -462,6 +464,7 @@ class BaseTranscriptionPipeline(ABC):
             return result_str, file_path
 
         except Exception as e:
+            logger.error("Error transcribing youtube:", exc_info=True)
             raise RuntimeError(f"Error transcribing youtube: {e}") from e
 
     def get_compute_type(self):
