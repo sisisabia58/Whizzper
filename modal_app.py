@@ -34,7 +34,13 @@ whizzper_image = (
         "pydantic",
         "fastapi",
         "pyyaml",
+        "ruamel.yaml",
+        "pytubefix",
         "gradio-i18n"
+    )
+    .pip_install(
+        "git+https://github.com/jhj0517/ultimatevocalremover_api.git",
+        "git+https://github.com/jhj0517/pyrubberband.git"
     )
     .add_local_python_source("modules")
 )
