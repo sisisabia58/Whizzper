@@ -5,8 +5,27 @@ import yt_dlp
 # Write cookies.txt from environment variable YOUTUBE_COOKIES if available
 if os.environ.get("YOUTUBE_COOKIES"):
     try:
+        raw_cookies = os.environ["YOUTUBE_COOKIES"]
+        fixed_lines = []
+        for line in raw_cookies.splitlines():
+            line_stripped = line.strip()
+            if not line_stripped or line_stripped.startswith("#"):
+                fixed_lines.append(line)
+                continue
+            parts = line_stripped.split()
+            if len(parts) >= 7:
+                # Reconstruct tab-separated Netscape format
+                reconstructed = "\t".join(parts[:6] + [" ".join(parts[6:])])
+                fixed_lines.append(reconstructed)
+            else:
+                fixed_lines.append(line)
+        
+        content = "\n".join(fixed_lines)
+        if not content.startswith("# Netscape HTTP Cookie File"):
+            content = "# Netscape HTTP Cookie File\n" + content
+            
         with open("cookies.txt", "w", encoding="utf-8") as f:
-            f.write(os.environ["YOUTUBE_COOKIES"])
+            f.write(content)
     except Exception as e:
         print(f"Error writing YOUTUBE_COOKIES environment variable to cookies.txt: {e}")
 
