@@ -1,8 +1,10 @@
 import os
 import base64
+import json
 import requests
 import time
 import tempfile
+import subprocess
 import soundfile as sf
 from typing import Union, BinaryIO, Tuple, List, Optional, Callable
 import numpy as np
@@ -64,12 +66,36 @@ class ModalWhisperInference(BaseTranscriptionPipeline):
 
         progress(0.1, desc="Preparing audio for Modal GPU server...")
 
-        # 1. Read audio file to bytes
-        file_name = "audio.wav"
+        # 1. Read audio file to bytes (compress audio with ffmpeg if video/media file)
+        file_name = "audio.mp3"
+        tmp_mp3 = None
         if isinstance(audio, str):
-            file_name = os.path.basename(audio)
-            with open(audio, "rb") as f:
+            file_ext = os.path.splitext(audio)[1].lower()
+            if file_ext in [".mp4", ".m4a", ".mkv", ".avi", ".mov", ".flv", ".webm", ".wav", ".ogg", ".flac"]:
+                tmp_file = tempfile.NamedTemporaryFile(suffix=".mp3", delete=False)
+                tmp_mp3 = tmp_file.name
+                tmp_file.close()
+                try:
+                    cmd = ["ffmpeg", "-y", "-i", audio, "-vn", "-c:a", "libmp3lame", "-b:a", "64k", tmp_mp3]
+                    subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+                    read_path = tmp_mp3
+                    file_name = "audio.mp3"
+                except Exception as ex:
+                    logger.warning(f"ffmpeg compression failed, falling back to raw file: {ex}")
+                    read_path = audio
+                    file_name = os.path.basename(audio)
+            else:
+                read_path = audio
+                file_name = os.path.basename(audio)
+
+            with open(read_path, "rb") as f:
                 audio_bytes = f.read()
+
+            if tmp_mp3 and os.path.exists(tmp_mp3):
+                try:
+                    os.remove(tmp_mp3)
+                except Exception:
+                    pass
         elif isinstance(audio, np.ndarray):
             with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
                 sf.write(tmp.name, audio, 16000)
@@ -104,11 +130,35 @@ class ModalWhisperInference(BaseTranscriptionPipeline):
         progress(0.3, desc="Offloading inference to Modal GPU...")
         start_time = time.time()
 
-        response = requests.post(self.endpoint_url, json=payload, timeout=600)
-        if response.status_code != 200:
-            raise RuntimeError(f"Modal inference failed [{response.status_code}]: {response.text}")
-
-        res_json = response.json()
+        res_json = None
+        try:
+            import modal
+            f = modal.Function.from_name("whizzper-backend", "run_transcription_gpu")
+            res_json = f.remote(
+                audio_bytes=audio_bytes,
+                file_name=file_name,
+                whisper_type="faster-whisper",
+                model_size=params.whisper.model_size,
+                lang=params.whisper.lang,
+                is_translate=bool(params.whisper.is_translate),
+                beam_size=params.whisper.beam_size,
+                compute_type=params.whisper.compute_type,
+                vad_filter=str(params.vad.vad_filter),
+                is_diarize=str(params.diarization.is_diarize),
+                hf_token=params.diarization.hf_token or os.environ.get("HF_TOKEN", ""),
+                is_separate_bgm=str(params.bgm_separation.is_separate_bgm)
+            )
+        except Exception as ex:
+            logger.info(f"Modal SDK lookup fallback to HTTP endpoint: {ex}")
+            json_bytes = json.dumps(payload).encode("utf-8")
+            headers = {
+                "Content-Type": "application/json",
+                "Content-Length": str(len(json_bytes))
+            }
+            response = requests.post(self.endpoint_url, data=json_bytes, headers=headers, timeout=600)
+            if response.status_code != 200:
+                raise RuntimeError(f"Modal inference failed [{response.status_code}]: {response.text}")
+            res_json = response.json()
         segments_raw = res_json.get("segments", [])
         elapsed_time = res_json.get("elapsed_time", time.time() - start_time)
 
