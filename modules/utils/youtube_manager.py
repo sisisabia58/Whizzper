@@ -2,6 +2,14 @@ import os
 import subprocess
 import yt_dlp
 
+# Write cookies.txt from environment variable YOUTUBE_COOKIES if available
+if os.environ.get("YOUTUBE_COOKIES"):
+    try:
+        with open("cookies.txt", "w", encoding="utf-8") as f:
+            f.write(os.environ["YOUTUBE_COOKIES"])
+    except Exception as e:
+        print(f"Error writing YOUTUBE_COOKIES environment variable to cookies.txt: {e}")
+
 class YoutubeData:
     def __init__(self, title, thumbnail_url, description, url):
         self.title = title
