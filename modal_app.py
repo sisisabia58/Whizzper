@@ -19,7 +19,9 @@ CACHE_DIR = "/root/.cache/whizzper"
 whizzper_image = (
     modal.Image.debian_slim(python_version="3.10")
     .apt_install("ffmpeg", "git")
+    .pip_install("setuptools<70.0.0", "wheel")
     .pip_install(
+        "openai-whisper",
         "faster-whisper==1.0.3",
         "torch",
         "torchaudio",
