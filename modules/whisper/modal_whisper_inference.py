@@ -66,6 +66,13 @@ class ModalWhisperInference(BaseTranscriptionPipeline):
 
         progress(0.1, desc="Preparing audio for Modal GPU server...")
 
+        if hasattr(audio, "name") and audio.name:
+            audio = audio.name
+        elif hasattr(audio, "path") and audio.path:
+            audio = audio.path
+        elif isinstance(audio, dict):
+            audio = audio.get("name") or audio.get("path")
+
         # 1. Read audio file to bytes (compress audio with ffmpeg if video/media file)
         file_name = "audio.mp3"
         tmp_mp3 = None

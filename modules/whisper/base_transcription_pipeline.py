@@ -265,8 +265,22 @@ class BaseTranscriptionPipeline(ABC):
                 files = get_media_files(input_folder_path, include_sub_directory=include_subdirectory)
             if isinstance(files, str):
                 files = [files]
-            if files and isinstance(files[0], gr.utils.NamedString):
-                files = [file.name for file in files]
+            if files:
+                cleaned_files = []
+                for f in files:
+                    if isinstance(f, str):
+                        cleaned_files.append(f)
+                    elif hasattr(f, "name") and f.name:
+                        cleaned_files.append(f.name)
+                    elif hasattr(f, "path") and f.path:
+                        cleaned_files.append(f.path)
+                    elif isinstance(f, dict):
+                        val = f.get("name") or f.get("path")
+                        if val:
+                            cleaned_files.append(val)
+                    else:
+                        cleaned_files.append(str(f))
+                files = cleaned_files
 
             files_info = {}
             for file in files:
