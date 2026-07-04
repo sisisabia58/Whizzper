@@ -323,11 +323,27 @@ class App:
 
     @staticmethod
     def open_folder(folder_path: str):
-        if os.path.exists(folder_path):
-            os.system(f"start {folder_path}")
-        else:
+        import platform
+        if not os.path.exists(folder_path):
             os.makedirs(folder_path, exist_ok=True)
             logger.info(f"The directory path {folder_path} has newly created.")
+            return
+
+        # Do not try to open folder in graphical explorer if running on a remote server/headless environment
+        if os.environ.get("PORT"):
+            logger.info(f"Running on remote server. Outputs are stored in local path: {folder_path}")
+            return
+
+        system = platform.system()
+        try:
+            if system == "Windows":
+                os.startfile(folder_path)
+            elif system == "Darwin":  # macOS
+                os.system(f"open {folder_path}")
+            else:  # Linux / Unix
+                os.system(f"xdg-open {folder_path}")
+        except Exception as e:
+            logger.warning(f"Could not open directory browser: {e}")
 
 
 env_port = os.environ.get("PORT") or os.environ.get("SERVER_PORT")
