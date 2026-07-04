@@ -7,12 +7,12 @@ RUN apt-get update && \
 
 WORKDIR /Whisper-WebUI
 
-COPY requirements.txt .
+COPY requirements-railway.txt .
 
 RUN python3 -m venv venv && \
     . venv/bin/activate && \
     pip install -U pip "setuptools<70.0.0" wheel && \
-    pip install --no-build-isolation -r requirements.txt
+    pip install --no-build-isolation -r requirements-railway.txt
 
 
 FROM debian:bookworm-slim AS runtime
