@@ -1,0 +1,14 @@
+[providers]
+providers = ["python"]
+
+[phases.setup]
+nixPkgs = ["ffmpeg", "git"]
+
+[phases.install]
+cmds = [
+  "pip install --upgrade pip setuptools<70.0.0 wheel",
+  "pip install --no-build-isolation -r requirements-railway.txt"
+]
+
+[start]
+cmd = "python app.py"
