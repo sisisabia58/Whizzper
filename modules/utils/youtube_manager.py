@@ -16,6 +16,12 @@ def get_ytdata(link: str) -> YoutubeData:
         'no_warnings': True,
         'format': 'bestaudio/best',
     }
+    cookie_paths = ["cookies.txt", os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "cookies.txt")]
+    for path in cookie_paths:
+        if os.path.exists(path):
+            ydl_opts['cookiefile'] = path
+            break
+            
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(link, download=False)
         title = info.get('title', 'Unknown Title')
@@ -54,7 +60,12 @@ def get_ytaudio(ytdata: YoutubeData) -> str:
         'quiet': True,
         'no_warnings': True,
     }
-    
+    cookie_paths = ["cookies.txt", os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "cookies.txt")]
+    for path in cookie_paths:
+        if os.path.exists(path):
+            ydl_opts['cookiefile'] = path
+            break
+            
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(ytdata.url, download=True)
         downloaded_filename = ydl.prepare_filename(info)
