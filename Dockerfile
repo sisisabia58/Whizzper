@@ -1,7 +1,7 @@
 FROM debian:bookworm-slim AS builder
 
 RUN apt-get update && \
-    apt-get install -y curl git python3 python3-pip python3-venv && \
+    apt-get install -y curl git python3 python3-pip python3-venv nodejs && \
     rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/* && \
     mkdir -p /Whisper-WebUI
 
@@ -18,7 +18,7 @@ RUN python3 -m venv venv && \
 FROM debian:bookworm-slim AS runtime
 
 RUN apt-get update && \
-    apt-get install -y curl ffmpeg python3 && \
+    apt-get install -y curl ffmpeg python3 nodejs && \
     rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
 
 WORKDIR /Whisper-WebUI

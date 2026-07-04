@@ -2,7 +2,7 @@
 providers = ["python"]
 
 [phases.setup]
-nixPkgs = ["ffmpeg", "git"]
+nixPkgs = ["ffmpeg", "git", "nodejs"]
 
 [phases.install]
 cmds = [
