@@ -42,7 +42,7 @@ whizzper_image = (
         "git+https://github.com/jhj0517/ultimatevocalremover_api.git",
         "git+https://github.com/jhj0517/pyrubberband.git"
     )
-    .add_local_python_source("modules")
+    .add_local_dir("modules", remote_path="/root/modules")
 )
 
 
@@ -151,8 +151,14 @@ def transcribe_endpoint(req: TranscriptionRequest) -> Dict[str, Any]:
         )
 
         # 5. Execute transcription pipeline on GPU
+        # Positional arguments: audio, progress, file_format, add_timestamp, progress_callback, *pipeline_params
+        import gradio as gr
         segments, elapsed_time = pipeline.run(
             tmp_audio_path,
+            gr.Progress(),
+            "SRT",
+            True,
+            None,
             *pipeline_params.to_list()
         )
 
