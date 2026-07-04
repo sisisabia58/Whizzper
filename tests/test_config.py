@@ -37,9 +37,11 @@ def is_pytube_detected_bot(url: str = TEST_YOUTUBE_URL):
             return False
         yt = get_ytdata(url)
         audio = get_ytaudio(yt)
+        if audio is None or not os.path.exists(audio):
+            return True
         return False
     except Exception as e:
-        print(f"Pytube has detected as a bot: {e}")
+        print(f"yt-dlp has failed / detected as bot: {e}")
         return True
 
 

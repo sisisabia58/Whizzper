@@ -37,7 +37,7 @@ whizzper_image = (
         "fastapi",
         "pyyaml",
         "ruamel.yaml",
-        "pytubefix",
+        "yt-dlp[default,curl-cffi]",
         "gradio-i18n"
     )
     .pip_install(

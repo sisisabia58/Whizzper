@@ -1,32 +1,82 @@
-from pytubefix import YouTube
-import subprocess
 import os
+import subprocess
+import yt_dlp
 
+class YoutubeData:
+    def __init__(self, title, thumbnail_url, description, url):
+        self.title = title
+        self.thumbnail_url = thumbnail_url
+        self.description = description
+        self.url = url
 
-def get_ytdata(link):
-    return YouTube(link)
+def get_ytdata(link: str) -> YoutubeData:
+    ydl_opts = {
+        'nocheckcertificate': True,
+        'quiet': True,
+        'no_warnings': True,
+        'format': 'bestaudio/best',
+    }
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(link, download=False)
+        title = info.get('title', 'Unknown Title')
+        thumbnail = info.get('thumbnail', '')
+        description = info.get('description', '')
+        return YoutubeData(title, thumbnail, description, link)
 
-
-def get_ytmetas(link):
-    yt = YouTube(link)
-    return yt.thumbnail_url, yt.title, yt.description
-
-
-def get_ytaudio(ytdata: YouTube):
-    # Somehow the audio is corrupted so need to convert to valid audio file.
-    # Fix for : https://github.com/jhj0517/Whisper-WebUI/issues/304
-
-    audio_path = ytdata.streams.get_audio_only().download(filename=os.path.join("modules", "yt_tmp.wav"))
-    temp_audio_path = os.path.join("modules", "yt_tmp_fixed.wav")
-
+def get_ytmetas(link: str):
     try:
+        yt = get_ytdata(link)
+        return yt.thumbnail_url, yt.title, yt.description
+    except Exception as e:
+        print(f"Error fetching YouTube metadata: {e}")
+        return None, f"Error: {e}", ""
+
+def get_ytaudio(ytdata: YoutubeData) -> str:
+    audio_path = os.path.join("modules", "yt_tmp.wav")
+    temp_audio_path = os.path.join("modules", "yt_tmp_fixed.wav")
+    
+    if os.path.exists(audio_path):
+        try:
+            os.remove(audio_path)
+        except OSError:
+            pass
+            
+    if os.path.exists(temp_audio_path):
+        try:
+            os.remove(temp_audio_path)
+        except OSError:
+            pass
+            
+    ydl_opts = {
+        'format': 'bestaudio/best',
+        'outtmpl': os.path.join("modules", "yt_tmp_downloaded.%(ext)s"),
+        'nocheckcertificate': True,
+        'quiet': True,
+        'no_warnings': True,
+    }
+    
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(ytdata.url, download=True)
+        downloaded_filename = ydl.prepare_filename(info)
+        
+    try:
+        # Convert to valid wav audio file using ffmpeg.
+        # Fix for : https://github.com/jhj0517/Whisper-WebUI/issues/304
         subprocess.run([
             'ffmpeg', '-y',
-            '-i', audio_path,
+            '-i', downloaded_filename,
             temp_audio_path
         ], check=True)
 
         os.replace(temp_audio_path, audio_path)
+        
+        # Clean up downloaded raw audio if it's different from final audio_path
+        if os.path.exists(downloaded_filename) and downloaded_filename != audio_path:
+            try:
+                os.remove(downloaded_filename)
+            except OSError:
+                pass
+                
         return audio_path
     except subprocess.CalledProcessError as e:
         print(f"Error during ffmpeg conversion: {e}")
