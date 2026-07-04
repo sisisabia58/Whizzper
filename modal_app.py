@@ -208,7 +208,7 @@ async def transcribe_endpoint(request: Request) -> Dict[str, Any]:
         raise HTTPException(status_code=400, detail=f"Bad Request: {str(ex)}")
 
     audio_bytes = base64.b64decode(req.audio_base64)
-    return run_transcription_gpu.local(
+    return run_transcription_gpu.remote(
         audio_bytes=audio_bytes,
         file_name=req.file_name or "audio.wav",
         whisper_type=req.whisper_type or "faster-whisper",
