@@ -611,16 +611,16 @@ class TranscriptionPipelineParams(BaseModel):
         """Convert list to the data class again to use it in a function."""
         data_list = deepcopy(pipeline_list)
 
-        whisper_list = data_list[0:len(WhisperParams.__annotations__)]
-        data_list = data_list[len(WhisperParams.__annotations__):]
+        whisper_list = data_list[0:len(WhisperParams.model_fields)]
+        data_list = data_list[len(WhisperParams.model_fields):]
 
-        vad_list = data_list[0:len(VadParams.__annotations__)]
-        data_list = data_list[len(VadParams.__annotations__):]
+        vad_list = data_list[0:len(VadParams.model_fields)]
+        data_list = data_list[len(VadParams.model_fields):]
 
-        diarization_list = data_list[0:len(DiarizationParams.__annotations__)]
-        data_list = data_list[len(DiarizationParams.__annotations__):]
+        diarization_list = data_list[0:len(DiarizationParams.model_fields)]
+        data_list = data_list[len(DiarizationParams.model_fields):]
 
-        bgm_sep_list = data_list[0:len(BGMSeparationParams.__annotations__)]
+        bgm_sep_list = data_list[0:len(BGMSeparationParams.model_fields)]
 
         return TranscriptionPipelineParams(
             whisper=WhisperParams.from_list(whisper_list),
