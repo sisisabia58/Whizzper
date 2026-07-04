@@ -22,11 +22,18 @@ class DiarizationPipeline:
     ):
         if isinstance(device, str):
             device = torch.device(device)
-        self.model = Pipeline.from_pretrained(
-            model_name,
-            use_auth_token=use_auth_token,
-            cache_dir=cache_dir
-        ).to(device)
+        try:
+            self.model = Pipeline.from_pretrained(
+                model_name,
+                token=use_auth_token,
+                cache_dir=cache_dir
+            ).to(device)
+        except TypeError:
+            self.model = Pipeline.from_pretrained(
+                model_name,
+                use_auth_token=use_auth_token,
+                cache_dir=cache_dir
+            ).to(device)
 
     def __call__(self, audio: Union[str, np.ndarray], min_speakers=None, max_speakers=None):
         if isinstance(audio, str):
