@@ -113,14 +113,14 @@ async def delete_task(
         raise HTTPException(status_code=404, detail="Task not found")
 
 
-# Get All method, commented by default because this endpoint is likely to require special permissions
-# @task_router.get(
-#     "/all",
-#     response_model=TasksResult,
-#     status_code=status.HTTP_200_OK,
-#     summary="Retrieve All Task Statuses",
-#     description="Retrieve the statuses of all tasks available in the system.",
-# )
+# Get All method
+@task_router.get(
+    "/all",
+    response_model=TasksResult,
+    status_code=status.HTTP_200_OK,
+    summary="Retrieve All Task Statuses",
+    description="Retrieve the statuses of all tasks available in the system.",
+)
 async def get_all_tasks_status(
     session: Session = Depends(get_db_session),
 ) -> TasksResult:

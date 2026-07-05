@@ -103,7 +103,7 @@ def metrics():
     return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
-@app.get("/", response_class=RedirectResponse, include_in_schema=False)
-async def index():
-    return "/docs"
+from fastapi.staticfiles import StaticFiles
+
+app.mount("/", StaticFiles(directory="backend/static", html=True), name="static")
 

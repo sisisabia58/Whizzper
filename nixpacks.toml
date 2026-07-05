@@ -7,8 +7,9 @@ nixPkgs = ["ffmpeg", "git", "nodejs"]
 [phases.install]
 cmds = [
   "pip install --upgrade pip setuptools<70.0.0 wheel",
-  "pip install --no-build-isolation -r requirements-railway.txt"
+  "pip install --no-build-isolation -r requirements-railway.txt",
+  "cd frontend && npm install && npm run build"
 ]
 
 [start]
-cmd = "python app.py"
+cmd = "uvicorn backend.main:app --host 0.0.0.0 --port $PORT"
