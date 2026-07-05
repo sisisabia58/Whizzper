@@ -574,8 +574,12 @@ class BaseTranscriptionPipeline(ABC):
         elif params.whisper.lang == AUTOMATIC_DETECTION:
             params.whisper.lang = None
         else:
-            language_code_dict = {value: key for key, value in whisper.tokenizer.LANGUAGES.items()}
-            params.whisper.lang = language_code_dict[params.whisper.lang]
+            lang_lower = params.whisper.lang.lower()
+            if lang_lower in whisper.tokenizer.LANGUAGES:
+                params.whisper.lang = lang_lower
+            else:
+                language_code_dict = {value.lower(): key for key, value in whisper.tokenizer.LANGUAGES.items()}
+                params.whisper.lang = language_code_dict.get(lang_lower, params.whisper.lang)
 
         if params.whisper.initial_prompt == GRADIO_NONE_STR:
             params.whisper.initial_prompt = None
