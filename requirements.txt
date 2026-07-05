@@ -24,3 +24,10 @@ git+https://github.com/jhj0517/ultimatevocalremover_api.git
 git+https://github.com/jhj0517/pyrubberband.git
 modal
 python-multipart
+celery>=5.3.0
+redis>=5.0.0
+sqlalchemy>=2.0.0
+fastapi>=0.100.0
+pydantic>=2.0.0
+prometheus-client>=0.19.0
+sentry-sdk>=1.39.0
