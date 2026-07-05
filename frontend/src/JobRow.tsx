@@ -75,10 +75,17 @@ export function JobRow({ job, index }: JobRowProps) {
       className="border border-zinc-200 rounded-2xl bg-paper overflow-hidden">
       
       {/* Folder header (the "main" job row) */}
-      <button
+      <div
         onClick={() => setExpanded((v) => !v)}
-        aria-expanded={expanded}
-        className="w-full grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_auto] gap-4 items-center p-4 md:px-5 md:py-4 text-left hover:bg-paper-off/60 transition-colors">
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setExpanded((v) => !v);
+          }
+        }}
+        className="w-full grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_auto] gap-4 items-center p-4 md:px-5 md:py-4 text-left hover:bg-paper-off/60 transition-colors cursor-pointer select-none">
         
         {/* Left: folder info */}
         <div className="flex items-start gap-4 min-w-0">
@@ -162,7 +169,7 @@ export function JobRow({ job, index }: JobRowProps) {
             className={`w-5 h-5 text-zinc-400 transition-transform ${expanded ? 'rotate-180' : ''}`} />
           
         </div>
-      </button>
+      </div>
 
       {/* Expanded child files */}
       <AnimatePresence initial={false}>
