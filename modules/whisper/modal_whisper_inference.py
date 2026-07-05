@@ -26,7 +26,7 @@ class ModalWhisperInference(BaseTranscriptionPipeline):
                  output_dir: str = "outputs",
                  **kwargs):
         super().__init__(output_dir=output_dir)
-        self.endpoint_url = endpoint_url or os.environ.get("MODAL_WEB_ENDPOINT_URL") or "https://fiqri-hadi68--whizzper-backend-transcribe-endpoint.modal.run"
+        self.endpoint_url = endpoint_url or os.environ.get("MODAL_WEB_ENDPOINT_URL") or "https://revigefarta--whizzper-backend-transcribe-endpoint.modal.run"
         self.device = "modal-gpu"
         self.available_models = ["tiny", "base", "small", "medium", "large", "large-v1", "large-v2", "large-v3"]
         self.available_compute_types = ["float16", "int8", "float32"]
@@ -137,35 +137,48 @@ class ModalWhisperInference(BaseTranscriptionPipeline):
         progress(0.3, desc="Offloading inference to Modal GPU...")
         start_time = time.time()
 
-        res_json = None
-        try:
-            import modal
-            f = modal.Function.from_name("whizzper-backend", "run_transcription_gpu")
-            res_json = f.remote(
-                audio_bytes=audio_bytes,
-                file_name=file_name,
-                whisper_type="faster-whisper",
-                model_size=params.whisper.model_size,
-                lang=params.whisper.lang,
-                is_translate=bool(params.whisper.is_translate),
-                beam_size=params.whisper.beam_size,
-                compute_type=params.whisper.compute_type,
-                vad_filter=str(params.vad.vad_filter),
-                is_diarize=str(params.diarization.is_diarize),
-                hf_token=params.diarization.hf_token or os.environ.get("HF_TOKEN", ""),
-                is_separate_bgm=str(params.bgm_separation.is_separate_bgm)
-            )
-        except Exception as ex:
-            logger.info(f"Modal SDK lookup fallback to HTTP endpoint: {ex}")
-            json_bytes = json.dumps(payload).encode("utf-8")
-            headers = {
-                "Content-Type": "application/json",
-                "Content-Length": str(len(json_bytes))
-            }
-            response = requests.post(self.endpoint_url, data=json_bytes, headers=headers, timeout=600)
-            if response.status_code != 200:
-                raise RuntimeError(f"Modal inference failed [{response.status_code}]: {response.text}")
-            res_json = response.json()
+        def _call_modal():
+            try:
+                import modal
+                f = modal.Function.from_name("whizzper-backend", "run_transcription_gpu")
+                return f.remote(
+                    audio_bytes=audio_bytes,
+                    file_name=file_name,
+                    whisper_type="faster-whisper",
+                    model_size=params.whisper.model_size,
+                    lang=params.whisper.lang,
+                    is_translate=bool(params.whisper.is_translate),
+                    beam_size=params.whisper.beam_size,
+                    compute_type=params.whisper.compute_type,
+                    vad_filter=str(params.vad.vad_filter),
+                    is_diarize=str(params.diarization.is_diarize),
+                    hf_token=params.diarization.hf_token or os.environ.get("HF_TOKEN", ""),
+                    is_separate_bgm=str(params.bgm_separation.is_separate_bgm)
+                )
+            except Exception as ex:
+                logger.info(f"Modal SDK lookup fallback to HTTP endpoint: {ex}")
+                json_bytes = json.dumps(payload).encode("utf-8")
+                headers = {
+                    "Content-Type": "application/json",
+                    "Content-Length": str(len(json_bytes))
+                }
+                response = requests.post(self.endpoint_url, data=json_bytes, headers=headers, timeout=600)
+                if response.status_code != 200:
+                    raise RuntimeError(f"Modal inference failed [{response.status_code}]: {response.text}")
+                return response.json()
+
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(_call_modal)
+            p_val = 0.3
+            while not future.done():
+                future.wait(timeout=2.0)
+                if not future.done():
+                    elapsed = int(time.time() - start_time)
+                    p_val = min(0.95, p_val + 0.01)
+                    progress(p_val, desc=f"Processing on Modal GPU server ({elapsed}s elapsed)...")
+            res_json = future.result()
+
         segments_raw = res_json.get("segments", [])
         elapsed_time = res_json.get("elapsed_time", time.time() - start_time)
 
