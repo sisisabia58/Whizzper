@@ -76,7 +76,9 @@ export const sampleScannedFiles: ScannedFile[] = [
 export const API_BASE = '/api';
 
 export async function fetchAllTasks(): Promise<Transcript[]> {
-  const res = await fetch(`${API_BASE}/task/all`);
+  const res = await fetch(`${API_BASE}/task/all`, {
+    cache: 'no-store'
+  });
   if (!res.ok) throw new Error("Failed to fetch tasks");
   const data = await res.json();
   
