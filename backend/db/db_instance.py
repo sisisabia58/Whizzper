@@ -1,4 +1,5 @@
 import os
+import inspect
 from functools import wraps
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
@@ -33,12 +34,39 @@ def get_db_session():
 def handle_database_errors(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
-        session = kwargs.get("session")
+        # Inspect function signature
+        sig = inspect.signature(func)
+        bound_args = sig.bind_partial(*args, **kwargs)
+        
+        # Check if 'session' parameter is already bound (either in args or kwargs)
+        session_bound = 'session' in bound_args.arguments
+        
+        created_session = None
+        if not session_bound:
+            # Create a new session dynamically
+            created_session = SessionLocal()
+            # Bind the new session to the parameter
+            bound_args.arguments['session'] = created_session
+            
         try:
-            return func(*args, **kwargs)
+            # Run the original function with the bound arguments
+            result = func(*bound_args.args, **bound_args.kwargs)
+            # If we created the session, commit it
+            if created_session:
+                created_session.commit()
+            return result
         except Exception as e:
-            if session:
-                session.rollback()
+            # Rollback if error
+            if created_session:
+                created_session.rollback()
+            else:
+                passed_session = bound_args.arguments.get('session')
+                if passed_session and hasattr(passed_session, 'rollback'):
+                    passed_session.rollback()
             raise e
+        finally:
+            # Always close the session we created
+            if created_session:
+                created_session.close()
 
     return wrapper
