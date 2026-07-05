@@ -3,7 +3,7 @@ from sqlalchemy import Column, String, Integer, DateTime, Index
 from backend.db.db_instance import Base
 
 class Task(Base):
-    __tablename__ = "tasks"
+    __tablename__ = "legacy_tasks"
 
     id = Column(Integer, primary_key=True, index=True)
     identifier = Column(String, unique=True, index=True, nullable=False)

@@ -45,6 +45,10 @@ async def lifespan(app: FastAPI):
     import backend.db.models
     Base.metadata.create_all(bind=engine)
 
+    from sqlmodel import SQLModel
+    import backend.db.task.models
+    SQLModel.metadata.create_all(bind=engine)
+
     transcription_pipeline = get_pipeline()
     vad_inferencer = get_vad_model()
     bgm_separation_inferencer = get_bgm_separation_inferencer()
