@@ -1,9 +1,23 @@
 from typing import Dict, Any
+import math
 from sqlalchemy.orm import Session
 from fastapi import Depends
 
 from ..db_instance import handle_database_errors, get_db_session
 from .models import Task, TasksResult, TaskStatus
+
+
+def clean_json_val(val: Any) -> Any:
+    """Recursively clean floats (inf, -inf, nan) to make them JSON-serializable for SQL databases."""
+    if isinstance(val, dict):
+        return {k: clean_json_val(v) for k, v in val.items()}
+    elif isinstance(val, list):
+        return [clean_json_val(v) for v in val]
+    elif isinstance(val, float):
+        if math.isinf(val) or math.isnan(val):
+            return None
+        return val
+    return val
 
 
 @handle_database_errors
@@ -20,6 +34,9 @@ def add_task_to_db(
     """
     Add task to the db
     """
+    if task_params is not None:
+        task_params = clean_json_val(task_params)
+
     task = Task(
         status=status,
         language=language,
@@ -54,6 +71,10 @@ def update_task_status_in_db(
     task = session.query(Task).filter_by(uuid=identifier).first()
     if task:
         for key, value in update_data.items():
+            if key == "task_params" and value is not None:
+                value = clean_json_val(value)
+            elif key == "result" and value is not None:
+                value = clean_json_val(value)
             setattr(task, key, value)
         session.commit()
 
