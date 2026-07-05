@@ -40,6 +40,11 @@ async def lifespan(app: FastAPI):
     server_config = load_server_config()
     read_env("DB_URL")
 
+    # Automatically initialize database tables
+    from backend.db.db_instance import Base
+    import backend.db.models
+    Base.metadata.create_all(bind=engine)
+
     transcription_pipeline = get_pipeline()
     vad_inferencer = get_vad_model()
     bgm_separation_inferencer = get_bgm_separation_inferencer()
