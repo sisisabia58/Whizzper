@@ -47,12 +47,31 @@ class App:
                     f"Device \"{self.whisper_inf.device}\" is detected")
 
     def create_pipeline_inputs(self):
+        from modules.whisper.presets import get_preset, resolve_smart_defaults
+
+        # Determine smart defaults and preset based on device
+        device_name = self.whisper_inf.device
+        preset_key = "fast_draft" if device_name == "cpu" else "balanced"
+        preset_name = "Fast Draft" if device_name == "cpu" else "Balanced"
+        preset_data = get_preset(preset_key)
+
+        # Update default configs with preset values
         whisper_params = self.default_params["whisper"]
+        whisper_params["model_size"] = preset_data["model_size"]
+        whisper_params["compute_type"] = preset_data["compute_type"]
+        whisper_params["beam_size"] = preset_data["beam_size"]
+
         vad_params = self.default_params["vad"]
+        vad_params["vad_filter"] = preset_data["vad_filter"]
+
         diarization_params = self.default_params["diarization"]
         uvr_params = self.default_params["bgm_separation"]
 
         with gr.Row():
+            dd_preset = gr.Dropdown(choices=["Fast Draft", "Balanced", "Best Quality"],
+                                    value=preset_name,
+                                    label=_("Quality Preset"),
+                                    info=_("Pre-defined preset for transcription quality and speed"))
             dd_model = gr.Dropdown(choices=self.whisper_inf.available_models, value=whisper_params["model_size"],
                                    label=_("Model"), allow_custom_value=True)
             dd_lang = gr.Dropdown(choices=self.whisper_inf.available_langs + [AUTOMATIC_DETECTION],
@@ -86,6 +105,27 @@ class App:
             diarization_inputs = DiarizationParams.to_gradio_inputs(defaults=diarization_params,
                                                                     available_devices=self.whisper_inf.diarizer.available_device,
                                                                     device=self.whisper_inf.diarizer.device)
+
+        def on_preset_change(preset_val):
+            preset_key_map = {
+                "Fast Draft": "fast_draft",
+                "Balanced": "balanced",
+                "Best Quality": "best_quality"
+            }
+            key = preset_key_map.get(preset_val, "balanced")
+            data = get_preset(key)
+            return (
+                data["model_size"],
+                data["compute_type"],
+                data["beam_size"],
+                data["vad_filter"]
+            )
+
+        dd_preset.change(
+            fn=on_preset_change,
+            inputs=[dd_preset],
+            outputs=[dd_model, whisper_inputs[3], whisper_inputs[0], vad_inputs[0]]
+        )
 
         pipeline_inputs = [dd_model, dd_lang, cb_translate] + whisper_inputs + vad_inputs + diarization_inputs + uvr_inputs
 
