@@ -24,7 +24,7 @@ whizzper_image = (
         "nvidia-cublas-cu12",
         "nvidia-cudnn-cu12",
         "openai-whisper",
-        "faster-whisper==1.0.3",
+        "faster-whisper==1.1.1",
         "torch",
         "torchaudio",
         "ctranslate2",
