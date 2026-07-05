@@ -4,7 +4,8 @@ import { AudioLines, Upload, Search, Files, CircleCheck, Loader2, Hourglass, Ser
 import { InternalSidebar } from './InternalSidebar';
 import { TranscriptRow } from './TranscriptRow';
 import { TranscribeModal } from './TranscribeModal';
-import { Transcript, fetchAllTasks } from './transcriptions';
+import { Transcript, fetchAllTasks, groupTranscripts } from './transcriptions';
+import { JobRow } from './JobRow';
 
 export function Internal() {
   const [transcriptsList, setTranscriptsList] = useState<Transcript[]>([]);
@@ -159,9 +160,13 @@ export function Internal() {
                 <Loader2 className="animate-spin w-8 h-8 text-zinc-400 mx-auto" />
               </div>
             ) : visible.length > 0 ? (
-              visible.map((t, index) => (
-                <TranscriptRow key={t.id} transcript={t} index={index} />
-              ))
+              groupTranscripts(visible).map((item, index) => {
+                if (item.type === 'batch') {
+                  return <JobRow key={item.id} job={item.item} index={index} />;
+                } else {
+                  return <TranscriptRow key={item.id} transcript={item.item} index={index} />;
+                }
+              })
             ) : (
               <div className="text-center py-16 border border-dashed border-zinc-300 rounded-2xl bg-paper">
                 <Hourglass className="w-8 h-8 text-zinc-300 mx-auto mb-3" />

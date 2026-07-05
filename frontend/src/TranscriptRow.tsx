@@ -45,7 +45,7 @@ interface TranscriptRowProps {
   index: number;
 }
 
-function segmentsToSRT(segments: any[]): string {
+export function segmentsToSRT(segments: any[]): string {
   if (!Array.isArray(segments)) return "";
   return segments.map((seg, idx) => {
     const formatTime = (secs: number) => {
@@ -59,12 +59,12 @@ function segmentsToSRT(segments: any[]): string {
   }).join('\n');
 }
 
-function segmentsToTXT(segments: any[]): string {
+export function segmentsToTXT(segments: any[]): string {
   if (!Array.isArray(segments)) return "";
   return segments.map(seg => (seg.text || '').trim()).join('\n');
 }
 
-function triggerDownload(content: string, filename: string, mimeType: string) {
+export function triggerDownload(content: string, filename: string, mimeType: string) {
   const blob = new Blob([content], { type: mimeType });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');

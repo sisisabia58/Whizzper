@@ -12,6 +12,8 @@ export interface Transcript {
   progress: number;
   result?: any;
   error?: string;
+  batchId?: string;
+  batchFolderName?: string;
 }
 
 export interface TranscriptJob {

@@ -12,6 +12,7 @@ import {
   FileText } from
 'lucide-react';
 import { TranscriptJob, jobSummary, statusLabel } from './transcriptions';
+import { segmentsToSRT, segmentsToTXT, triggerDownload } from './TranscriptRow';
 interface JobRowProps {
   job: TranscriptJob;
   index: number;
@@ -45,6 +46,17 @@ export function JobRow({ job, index }: JobRowProps) {
   const StatusIcon = statusStyles[rowStatus].icon;
   const isProcessing = rowStatus === 'processing';
   const allDone = s.done === s.total && s.processing === 0 && s.queued === 0;
+
+  const downloadAllSRT = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Avoid expanding/collapsing row
+    const a = document.createElement('a');
+    a.href = `/api/task/batch/${job.id}/download`;
+    a.download = `${job.folderName}_subtitles.zip`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
   return (
     <motion.div
       initial={{
@@ -136,13 +148,14 @@ export function JobRow({ job, index }: JobRowProps) {
           </span>
 
           {allDone && s.completed > 0 &&
-          <span
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-full bg-ink text-paper text-sm font-semibold"
-            aria-hidden="true">
+          <button
+            onClick={downloadAllSRT}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-full bg-ink text-paper text-sm font-semibold hover:opacity-90 transition-opacity"
+            title="Download all SRT subtitles in a ZIP file">
             
               <Download className="w-4 h-4" />
               All SRT
-            </span>
+            </button>
           }
 
           <ChevronDown
@@ -177,6 +190,21 @@ export function JobRow({ job, index }: JobRowProps) {
               const fs = statusStyles[f.status];
               const FIcon = fs.icon;
               const TypeIcon = f.type === 'video' ? FileVideo : FileAudio;
+              
+              const handleView = () => {
+                if (!f.result) return;
+                const txtContent = segmentsToTXT(f.result);
+                const txtFilename = f.name.substring(0, f.name.lastIndexOf('.')) + '.txt';
+                triggerDownload(txtContent, txtFilename, 'text/plain');
+              };
+              
+              const handleDownload = () => {
+                if (!f.result) return;
+                const srtContent = segmentsToSRT(f.result);
+                const srtFilename = f.name.substring(0, f.name.lastIndexOf('.')) + '.srt';
+                triggerDownload(srtContent, srtFilename, 'text/srt');
+              };
+
               return (
                 <li
                   key={f.id}
@@ -224,12 +252,14 @@ export function JobRow({ job, index }: JobRowProps) {
                     {f.status === 'completed' &&
                   <div className="hidden sm:flex items-center gap-1 shrink-0">
                         <button
+                      onClick={handleView}
                       className="w-8 h-8 rounded-full flex items-center justify-center text-zinc-400 hover:bg-paper-off hover:text-ink transition-colors"
                       aria-label={`View transcript for ${f.name}`}>
                       
                           <FileText className="w-4 h-4" />
                         </button>
                         <button
+                      onClick={handleDownload}
                       className="w-8 h-8 rounded-full flex items-center justify-center text-zinc-400 hover:bg-paper-off hover:text-ink transition-colors"
                       aria-label={`Download SRT for ${f.name}`}>
                       
