@@ -4,3 +4,8 @@ pytest-cov
 fakeredis
 httpx
 sqlalchemy
+fastapi
+pydantic
+celery
+prometheus-client
+sentry-sdk
