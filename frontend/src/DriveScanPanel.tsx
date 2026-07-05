@@ -18,7 +18,7 @@ interface DriveScanPanelProps {
   onSelectionChange: (count: number) => void;
   /** reports the discovered folder name */
   onFolderChange: (name: string | null) => void;
-  onSelectionChangeWithIds?: (ids: string[], url: string) => void;
+  onSelectionChangeWithIds?: (ids: string[], url: string, files: { file_id: string; name: string; path: string }[]) => void;
 }
 const typeIcon = {
   audio: FileAudio,
@@ -43,8 +43,11 @@ export function DriveScanPanel({
   useEffect(() => {
     onSelectionChange(state === 'done' ? selectedCount : 0);
     if (state === 'done' && onSelectionChangeWithIds) {
-      const activeIds = processable.filter((f) => !excluded.has(f.id)).map((f) => f.id);
-      onSelectionChangeWithIds(activeIds, link);
+      const activeFiles = processable
+        .filter((f) => !excluded.has(f.id))
+        .map((f) => ({ file_id: f.id, name: f.name, path: (f.path === "/" ? "" : f.path + "/") + f.name }));
+      const activeIds = activeFiles.map(f => f.file_id);
+      onSelectionChangeWithIds(activeIds, link, activeFiles);
     }
   }, [state, selectedCount, excluded, scannedFiles, link, onSelectionChange, onSelectionChangeWithIds]);
 

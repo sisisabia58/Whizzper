@@ -105,7 +105,7 @@ export function TranscribeModal({ open, onClose }: TranscribeModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [driveCount, setDriveCount] = useState(0);
   const [driveFolder, setDriveFolder] = useState<string | null>(null);
-  const [selectedFileIds, setSelectedFileIds] = useState<string[]>([]);
+  const [selectedFiles, setSelectedFiles] = useState<{ file_id: string; name: string; path: string }[]>([]);
   const [folderUrl, setFolderUrl] = useState('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -157,7 +157,7 @@ export function TranscribeModal({ open, onClose }: TranscribeModalProps) {
 
   const handleTranscribeSubmit = async () => {
     if (sourceMode === 'upload' && !selectedRealFile) return;
-    if (sourceMode === 'drive' && selectedFileIds.length === 0) return;
+    if (sourceMode === 'drive' && selectedFiles.length === 0) return;
     
     setIsSubmitting(true);
     try {
@@ -176,7 +176,7 @@ export function TranscribeModal({ open, onClose }: TranscribeModalProps) {
         await startBatchTranscription(
           folderUrl,
           driveFolder || "Google Drive Folder",
-          selectedFileIds,
+          selectedFiles,
           model,
           language,
           {
@@ -361,8 +361,8 @@ export function TranscribeModal({ open, onClose }: TranscribeModalProps) {
                     <DriveScanPanel
                       onSelectionChange={setDriveCount}
                       onFolderChange={setDriveFolder}
-                      onSelectionChangeWithIds={(ids, url) => {
-                        setSelectedFileIds(ids);
+                      onSelectionChangeWithIds={(ids, url, files) => {
+                        setSelectedFiles(files || []);
                         setFolderUrl(url);
                       }}
                     />

@@ -105,7 +105,9 @@ export async function fetchAllTasks(): Promise<Transcript[]> {
       status,
       progress: task.progress ? Math.round(task.progress * 100) : 0,
       result: task.result,
-      error: task.error
+      error: task.error,
+      batchId: task.batch_id || undefined,
+      batchFolderName: task.task_params?.folder_name || undefined
     };
   });
 }
@@ -181,10 +183,17 @@ export async function scanDriveFolder(folderUrl: string): Promise<{ folder_name:
   };
 }
 
+export interface QueueItem {
+  type: 'individual' | 'batch';
+  id: string;
+  createdAt: string;
+  item: any;
+}
+
 export async function startBatchTranscription(
   folderUrl: string,
   folderName: string,
-  selectedFileIds: string[],
+  selectedFiles: { file_id: string; name: string; path: string }[],
   preset: 'cheetah' | 'dolphin' | 'whale',
   language: string,
   options: { speakers: boolean; translate: boolean; restore: boolean }
@@ -204,7 +213,7 @@ export async function startBatchTranscription(
     source_type: "drive_folder",
     folder_url: folderUrl,
     folder_name: folderName,
-    selected_file_ids: selectedFileIds,
+    files: selectedFiles,
     whisper_params: {
       model_size: modelSize,
       compute_type: computeType,
@@ -231,5 +240,47 @@ export async function startBatchTranscription(
   if (!res.ok) throw new Error("Failed to queue batch transcription");
   const data = await res.json();
   return data.batch_id;
+}
+
+export function groupTranscripts(list: Transcript[]): QueueItem[] {
+  const result: QueueItem[] = [];
+  const batchIndices = new Map<string, number>();
+
+  list.forEach((t) => {
+    if (t.batchId) {
+      if (!batchIndices.has(t.batchId)) {
+        const job: TranscriptJob = {
+          id: t.batchId,
+          folderName: t.batchFolderName || "Google Drive Folder",
+          source: 'google-drive',
+          createdAt: t.createdAt,
+          language: t.language || 'Auto-detect',
+          files: [t]
+        };
+        result.push({
+          type: 'batch',
+          id: t.batchId,
+          createdAt: t.createdAt,
+          item: job
+        });
+        batchIndices.set(t.batchId, result.length - 1);
+      } else {
+        const idx = batchIndices.get(t.batchId)!;
+        const jobItem = result[idx];
+        if (jobItem.type === 'batch') {
+          jobItem.item.files.push(t);
+        }
+      }
+    } else {
+      result.push({
+        type: 'individual',
+        id: t.id,
+        createdAt: t.createdAt,
+        item: t
+      });
+    }
+  });
+
+  return result;
 }
 
