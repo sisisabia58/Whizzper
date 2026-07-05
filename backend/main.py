@@ -1,20 +1,22 @@
+import json
 from contextlib import asynccontextmanager
-from fastapi import (
-    FastAPI,
-)
+from fastapi import FastAPI, Response
 from fastapi.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 import os
 import time
 import threading
 
-from backend.db.db_instance import init_db
+from backend.db.db_instance import engine, SessionLocal
 from backend.routers.transcription.router import transcription_router, get_pipeline
 from backend.routers.vad.router import get_vad_model, vad_router
 from backend.routers.bgm_separation.router import get_bgm_separation_inferencer, bgm_separation_router
 from backend.routers.task.router import task_router
 from backend.common.config_loader import read_env, load_server_config
 from backend.common.cache_manager import cleanup_old_files
+from backend.common.logging import setup_json_logging
+from backend.common.observability import init_sentry, generate_latest, CONTENT_TYPE_LATEST
 from modules.utils.paths import SERVER_CONFIG_PATH, BACKEND_CACHE_DIR
 
 
@@ -33,23 +35,20 @@ def clean_cache_thread(ttl: int, frequency: int) -> threading.Thread:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Basic setup initialization
+    setup_json_logging()
+    init_sentry()
     server_config = load_server_config()
-    read_env("DB_URL")  # Place .env file into /configs/.env
-    init_db()
+    read_env("DB_URL")
 
-    # Inferencer initialization
     transcription_pipeline = get_pipeline()
     vad_inferencer = get_vad_model()
     bgm_separation_inferencer = get_bgm_separation_inferencer()
 
-    # Thread initialization
     cache_thread = clean_cache_thread(server_config["cache"]["ttl"], server_config["cache"]["frequency"])
     cache_thread.start()
 
     yield
 
-    # Release VRAM when server shutdown
     transcription_pipeline = None
     vad_inferencer = None
     bgm_separation_inferencer = None
@@ -57,36 +56,49 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Whisper-WebUI-Backend",
-    description=f"""
-    REST API for Whisper-WebUI. Swagger UI is available via /docs or root URL with redirection. Redoc is available via /redoc. 
-    """,
+    description="REST API for Whisper-WebUI.",
     version="0.0.1",
     lifespan=lifespan,
-    openapi_tags=[
-        {
-            "name": "BGM Separation",
-            "description": "Cached files for /bgm-separation are generated in the `backend/cache` directory,"
-                           " you can set TLL for these files in `backend/configs/config.yaml`."
-        }
-    ]
 )
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "PATCH", "OPTIONS"],  # Disable DELETE
+    allow_methods=["GET", "POST", "PUT", "PATCH", "OPTIONS"],
     allow_headers=["*"],
 )
+
 app.include_router(transcription_router)
 app.include_router(vad_router)
 app.include_router(bgm_separation_router)
 app.include_router(task_router)
 
 
+@app.get("/health")
+def health_check():
+    db_ok = True
+    redis_ok = True
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1") if hasattr(text, "__call__") else "SELECT 1")
+    except Exception:
+        db_ok = False
+
+    status_code = 200 if (db_ok and redis_ok) else 503
+    return Response(
+        status_code=status_code,
+        content=json.dumps({"status": "ok" if status_code == 200 else "degraded", "database": db_ok, "redis": redis_ok}),
+        media_type="application/json"
+    )
+
+
+@app.get("/metrics")
+def metrics():
+    return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+
 @app.get("/", response_class=RedirectResponse, include_in_schema=False)
 async def index():
-    """
-    Redirect to the documentation. Defaults to Swagger UI.
-    You can also check the /redoc with redoc style: https://github.com/Redocly/redoc
-    """
     return "/docs"
+
