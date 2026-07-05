@@ -133,7 +133,7 @@ export async function startTranscription(
   const queryParams = new URLSearchParams({
     'model_size': modelSize,
     'compute_type': computeType,
-    'lang': language === 'Auto-detect' ? 'Auto-detect' : language,
+    'lang': language === 'Auto-detect' ? 'Automatic Detection' : language,
     'is_translate': String(options.translate),
     'vad_filter': String(options.restore),
     'is_diarize': String(options.speakers)
