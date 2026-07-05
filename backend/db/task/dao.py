@@ -73,9 +73,7 @@ def get_task_status_from_db(
 @handle_database_errors
 def get_all_tasks_status_from_db(session: Session):
     """Get all tasks from db"""
-    columns = [Task.uuid, Task.status, Task.task_type]
-    query = session.query(*columns)
-    tasks = [task for task in query]
+    tasks = session.query(Task).order_by(Task.created_at.desc()).all()
     return TasksResult(tasks=tasks)
 
 
