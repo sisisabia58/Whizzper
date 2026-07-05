@@ -30,6 +30,9 @@ def add_task_to_db(
     file_name=None,
     url=None,
     audio_duration=None,
+    batch_id=None,
+    source_file_id=None,
+    source_path=None,
 ):
     """
     Add task to the db
@@ -45,6 +48,9 @@ def add_task_to_db(
         task_type=task_type,
         task_params=task_params,
         audio_duration=audio_duration,
+        batch_id=batch_id,
+        source_file_id=source_file_id,
+        source_path=source_path,
     )
     session.add(task)
     session.commit()

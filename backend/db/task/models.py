@@ -143,6 +143,19 @@ class Task(SQLModel, table=True):
         sa_column=Column(JSON),
         description="Parameters of the task"
     )
+    batch_id: Optional[str] = Field(
+        default=None,
+        index=True,
+        description="UUID of the parent batch job"
+    )
+    source_file_id: Optional[str] = Field(
+        default=None,
+        description="Google Drive file ID"
+    )
+    source_path: Optional[str] = Field(
+        default=None,
+        description="Relative path within the folder structure"
+    )
     duration: Optional[float] = Field(
         default=None,
         description="Duration of the task execution"
