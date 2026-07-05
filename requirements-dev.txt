@@ -1,0 +1,6 @@
+pytest>=8.0.0
+pytest-asyncio
+pytest-cov
+fakeredis
+httpx
+sqlalchemy
