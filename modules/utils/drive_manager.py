@@ -69,6 +69,8 @@ class DriveManager:
         if not self.service:
             raise ValueError("GOOGLE_DRIVE_API_KEY is not set")
             
+        from googleapiclient.http import MediaIoBaseDownload
+        
         request = self.service.files().get_media(fileId=file_id)
         
         with tempfile.NamedTemporaryFile(suffix=".tmp", delete=False) as raw_file:
@@ -76,7 +78,10 @@ class DriveManager:
             
         try:
             with open(raw_path, 'wb') as f:
-                f.write(request.execute())
+                downloader = MediaIoBaseDownload(f, request)
+                done = False
+                while done is False:
+                    status, done = downloader.next_chunk()
             
             # Extract to 64k mono MP3, then read it into the target WAV layout
             with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as mp3_file:
