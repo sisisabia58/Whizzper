@@ -11,3 +11,5 @@ outputs/
 models/
 modules/yt_tmp.wav
 .codegraph/
+*.db
+.omo/
