@@ -129,4 +129,81 @@ async def delete_task(
     else:
         raise HTTPException(status_code=404, detail="Task not found")
 
+
+@task_router.get("/batch/{batch_id}")
+async def get_batch_status(
+    batch_id: str,
+    session: Session = Depends(get_db_session)
+):
+    from backend.db.batch.dao import get_batch_from_db
+    batch = get_batch_from_db(batch_id, session)
+    if not batch:
+        raise HTTPException(status_code=404, detail="Batch job not found")
+        
+    children = session.query(Task).filter(Task.batch_id == batch_id).all()
+    
+    # Calculate progress aggregate
+    tot = len(children)
+    progress_sum = sum(c.progress or 0.0 for c in children)
+    aggregate_progress = progress_sum / tot if tot > 0 else 0.0
+    
+    return {
+        "batch_id": batch.batch_id,
+        "folder_name": batch.folder_name,
+        "source_type": batch.source_type,
+        "status": batch.status,
+        "total_files": batch.total_files,
+        "completed_files": batch.completed_files,
+        "failed_files": batch.failed_files,
+        "progress": round(aggregate_progress, 2),
+        "children": [
+            {
+                "identifier": c.uuid,
+                "name": c.file_name,
+                "path": c.source_path,
+                "status": c.status,
+                "progress": c.progress,
+                "duration": c.duration,
+                "error": c.error
+            } for c in children
+        ]
+    }
+
+
+@task_router.get("/batch/{batch_id}/download")
+async def download_batch_zip(
+    batch_id: str,
+    session: Session = Depends(get_db_session)
+):
+    import io
+    from backend.db.batch.dao import get_batch_from_db
+    from backend.common.zip_writer import build_srt_zip
+    from fastapi.responses import StreamingResponse
+
+    batch = get_batch_from_db(batch_id, session)
+    if not batch:
+        raise HTTPException(status_code=404, detail="Batch job not found")
+        
+    children = session.query(Task).filter(Task.batch_id == batch_id).all()
+    completed = [c for c in children if c.status == "completed"]
+    if not completed:
+        raise HTTPException(status_code=409, detail="No completed files yet")
+        
+    zip_bytes = build_srt_zip(completed)
+    
+    headers = {}
+    incomplete_count = len(children) - len(completed)
+    if incomplete_count > 0:
+        headers["X-Whizzper-Incomplete"] = str(incomplete_count)
+        
+    return StreamingResponse(
+        io.BytesIO(zip_bytes),
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f"attachment; filename={batch.folder_name}_subtitles.zip",
+            **headers
+        }
+    )
+
+
 
