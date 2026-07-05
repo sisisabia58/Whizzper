@@ -304,8 +304,14 @@ async def run_batch_dispatcher(batch_id: str, selected_ids: list, task_params: d
                 manager = DriveManager()
                 manager.download_and_extract_audio(file_id, wav_path)
                 
-                # 2. Process
-                audio, info = await read_audio(file=wav_path)
+                import wave
+                with wave.open(wav_path, "rb") as w:
+                    frames = w.readframes(w.getnframes())
+                    audio = np.frombuffer(frames, dtype=np.int16).astype(np.float32) / 32768.0
+                    duration = w.getnframes() / w.getframerate()
+                task.audio_duration = duration
+                session.commit()
+
                 
                 # Parse shared task parameters
                 whisper_d = task_params.get("whisper_params", {})
