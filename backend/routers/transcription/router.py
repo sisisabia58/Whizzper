@@ -13,6 +13,7 @@ from datetime import datetime
 from modules.whisper.data_classes import *
 from modules.utils.paths import BACKEND_CACHE_DIR
 from modules.whisper.faster_whisper_inference import FasterWhisperInference
+from modules.whisper.base_transcription_pipeline import BaseTranscriptionPipeline
 from backend.common.audio import read_audio
 from backend.common.models import QueueResponse
 from backend.common.config_loader import load_server_config
@@ -41,14 +42,19 @@ def create_progress_callback(identifier: str):
 
 
 @functools.lru_cache
-def get_pipeline() -> 'FasterWhisperInference':
+def get_pipeline() -> 'BaseTranscriptionPipeline':
     import os
+    from modules.whisper.whisper_factory import WhisperFactory
     config = load_server_config()["whisper"]
-    inferencer = FasterWhisperInference(
+    
+    # Use WhisperFactory to automatically switch to Modal serverless inference
+    # when MODAL_WEB_ENDPOINT_URL is configured.
+    inferencer = WhisperFactory.create_whisper_inference(
+        whisper_type="faster-whisper",
         output_dir=BACKEND_CACHE_DIR
     )
-    # When a Modal endpoint is configured all GPU inference is dispatched remotely.
-    # Skip loading the local model to avoid float16/CUDA errors on CPU-only hosts.
+    
+    # If we are not running on Modal, initialize/update local model settings
     if not os.environ.get("MODAL_WEB_ENDPOINT_URL"):
         inferencer.update_model(
             model_size=config["model_size"],
