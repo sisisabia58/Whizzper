@@ -135,8 +135,8 @@ export async function startTranscription(
     'compute_type': computeType,
     'lang': language === 'Auto-detect' ? 'Auto-detect' : language,
     'is_translate': String(options.translate),
-    'vad_filter': String(options.restore), // Map audio restoration option to VAD filter activation
-    'diarize': String(options.speakers)
+    'vad_filter': String(options.restore),
+    'is_diarize': String(options.speakers)
   });
 
   const res = await fetch(`${API_BASE}/transcription/?${queryParams.toString()}`, {

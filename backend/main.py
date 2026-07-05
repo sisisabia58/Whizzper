@@ -74,10 +74,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(transcription_router)
-app.include_router(vad_router)
-app.include_router(bgm_separation_router)
-app.include_router(task_router)
+app.include_router(transcription_router, prefix="/api")
+app.include_router(vad_router, prefix="/api")
+app.include_router(bgm_separation_router, prefix="/api")
+app.include_router(task_router, prefix="/api")
 
 
 @app.get("/health")
