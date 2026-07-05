@@ -24,6 +24,23 @@ from modules.utils.paths import BACKEND_CACHE_DIR
 task_router = APIRouter(prefix="/task", tags=["Tasks"])
 
 
+# Get All method
+@task_router.get(
+    "/all",
+    response_model=TasksResult,
+    status_code=status.HTTP_200_OK,
+    summary="Retrieve All Task Statuses",
+    description="Retrieve the statuses of all tasks available in the system.",
+)
+async def get_all_tasks_status(
+    session: Session = Depends(get_db_session),
+) -> TasksResult:
+    """
+    Retrieve all tasks.
+    """
+    return get_all_tasks_status_from_db(session=session)
+
+
 @task_router.get(
     "/{identifier}",
     response_model=TaskStatusResponse,
@@ -112,19 +129,4 @@ async def delete_task(
     else:
         raise HTTPException(status_code=404, detail="Task not found")
 
-
-# Get All method
-@task_router.get(
-    "/all",
-    response_model=TasksResult,
-    status_code=status.HTTP_200_OK,
-    summary="Retrieve All Task Statuses",
-    description="Retrieve the statuses of all tasks available in the system.",
-)
-async def get_all_tasks_status(
-    session: Session = Depends(get_db_session),
-) -> TasksResult:
-    """
-    Retrieve all tasks.
-    """
-    return get_all_tasks_status_from_db(session=session)
+
