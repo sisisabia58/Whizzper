@@ -11,7 +11,7 @@ def normalize_db_url(url: str) -> str:
     return url
 
 
-raw_url = os.environ.get("DB_URL", "sqlite:///./whizzper.db")
+raw_url = os.environ.get("DB_URL") or os.environ.get("DATABASE_URL") or "sqlite:///./whizzper.db"
 DB_URL = normalize_db_url(raw_url)
 
 engine_args = {"pool_pre_ping": True}
