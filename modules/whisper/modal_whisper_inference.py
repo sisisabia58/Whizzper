@@ -172,8 +172,9 @@ class ModalWhisperInference(BaseTranscriptionPipeline):
             future = executor.submit(_call_modal)
             p_val = 0.3
             while not future.done():
-                future.wait(timeout=2.0)
-                if not future.done():
+                try:
+                    res_json = future.result(timeout=2.0)
+                except concurrent.futures.TimeoutError:
                     elapsed = int(time.time() - start_time)
                     p_val = min(0.95, p_val + 0.01)
                     progress(p_val, desc=f"Processing on Modal GPU server ({elapsed}s elapsed)...")
