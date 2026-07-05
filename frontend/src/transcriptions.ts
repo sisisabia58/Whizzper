@@ -149,3 +149,87 @@ export async function startTranscription(
   const data = await res.json();
   return data.identifier;
 }
+
+export async function scanDriveFolder(folderUrl: string): Promise<{ folder_name: string; files: ScannedFile[] }> {
+  const res = await fetch(`${API_BASE}/drive/scan`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ folder_url: folderUrl }),
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.detail || "Failed to scan Google Drive folder");
+  }
+  const data = await res.json();
+  
+  const files: ScannedFile[] = data.files.map((file: any) => {
+    const isVideo = file.name.endsWith('.mp4') || file.name.endsWith('.mkv') || file.name.endsWith('.mov');
+    const sizeMB = file.size_bytes ? (file.size_bytes / (1024 * 1024)).toFixed(1) + " MB" : "0 MB";
+    return {
+      id: file.file_id,
+      name: file.name,
+      path: file.path.substring(0, file.path.lastIndexOf('/')) || "/",
+      type: file.is_media ? (isVideo ? 'video' : 'audio') : 'other',
+      size: sizeMB,
+      durationMin: file.duration_sec ? Math.round(file.duration_sec / 60) : undefined
+    };
+  });
+
+  return {
+    folder_name: data.folder_name || "Google Drive Folder",
+    files
+  };
+}
+
+export async function startBatchTranscription(
+  folderUrl: string,
+  folderName: string,
+  selectedFileIds: string[],
+  preset: 'cheetah' | 'dolphin' | 'whale',
+  language: string,
+  options: { speakers: boolean; translate: boolean; restore: boolean }
+): Promise<string> {
+  // Preset Mapping to parameters
+  let modelSize = 'medium';
+  let computeType = 'float16';
+  if (preset === 'cheetah') {
+    modelSize = 'small';
+    computeType = 'int8';
+  } else if (preset === 'whale') {
+    modelSize = 'large-v3';
+    computeType = 'float16';
+  }
+
+  const payload = {
+    source_type: "drive_folder",
+    folder_url: folderUrl,
+    folder_name: folderName,
+    selected_file_ids: selectedFileIds,
+    whisper_params: {
+      model_size: modelSize,
+      compute_type: computeType,
+      lang: language === 'Auto-detect' ? 'Automatic Detection' : language,
+      is_translate: options.translate
+    },
+    vad_params: {
+      vad_filter: options.restore
+    },
+    bgm_separation_params: {
+      is_separate_bgm: options.restore
+    },
+    diarization_params: {
+      is_diarize: options.speakers
+    }
+  };
+
+  const res = await fetch(`${API_BASE}/transcription/batch`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) throw new Error("Failed to queue batch transcription");
+  const data = await res.json();
+  return data.batch_id;
+}
+

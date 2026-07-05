@@ -11,13 +11,14 @@ import {
   Search,
   ArrowRight } from
 'lucide-react';
-import { sampleScannedFiles, ScannedFile } from './transcriptions';
+import { sampleScannedFiles, ScannedFile, scanDriveFolder } from './transcriptions';
 type ScanState = 'idle' | 'scanning' | 'done';
 interface DriveScanPanelProps {
   /** reports how many processable files are currently selected */
   onSelectionChange: (count: number) => void;
   /** reports the discovered folder name */
   onFolderChange: (name: string | null) => void;
+  onSelectionChangeWithIds?: (ids: string[], url: string) => void;
 }
 const typeIcon = {
   audio: FileAudio,
@@ -26,46 +27,49 @@ const typeIcon = {
 } as const;
 export function DriveScanPanel({
   onSelectionChange,
-  onFolderChange
+  onFolderChange,
+  onSelectionChangeWithIds
 }: DriveScanPanelProps) {
   const [link, setLink] = useState('');
   const [state, setState] = useState<ScanState>('idle');
   const [revealed, setRevealed] = useState(0);
   const [scannedCount, setScannedCount] = useState(0);
+  const [scannedFiles, setScannedFiles] = useState<ScannedFile[]>([]);
   const [excluded, setExcluded] = useState<Set<string>>(new Set());
   const timers = useRef<number[]>([]);
-  const processable = sampleScannedFiles.filter((f) => f.type !== 'other');
+  const processable = scannedFiles.filter((f) => f.type !== 'other');
   const selectedCount = processable.filter((f) => !excluded.has(f.id)).length;
+  
   useEffect(() => {
     onSelectionChange(state === 'done' ? selectedCount : 0);
-  }, [state, selectedCount, onSelectionChange]);
+    if (state === 'done' && onSelectionChangeWithIds) {
+      const activeIds = processable.filter((f) => !excluded.has(f.id)).map((f) => f.id);
+      onSelectionChangeWithIds(activeIds, link);
+    }
+  }, [state, selectedCount, excluded, scannedFiles, link, onSelectionChange, onSelectionChangeWithIds]);
+
   useEffect(() => () => timers.current.forEach((t) => clearTimeout(t)), []);
-  const startScan = () => {
+
+  const startScan = async () => {
     if (!link.trim()) return;
     setState('scanning');
     setRevealed(0);
     setScannedCount(0);
-    onFolderChange('Podcast — Season 4');
-    sampleScannedFiles.forEach((_, i) => {
-      const t = window.setTimeout(
-        () => {
-          setScannedCount(i + 1);
-        },
-        180 * (i + 1)
-      );
-      timers.current.push(t);
-    });
-    const done = window.setTimeout(
-      () => {
-        setState('done');
-        sampleScannedFiles.forEach((_, i) => {
-          const rt = window.setTimeout(() => setRevealed(i + 1), 40 * i);
-          timers.current.push(rt);
-        });
-      },
-      180 * sampleScannedFiles.length + 300
-    );
-    timers.current.push(done);
+    try {
+      const result = await scanDriveFolder(link);
+      onFolderChange(result.folder_name);
+      setScannedFiles(result.files);
+      setScannedCount(result.files.length);
+      setState('done');
+      // Animate reveal of files
+      result.files.forEach((_, i) => {
+        const rt = window.setTimeout(() => setRevealed(i + 1), 40 * i);
+        timers.current.push(rt);
+      });
+    } catch (e) {
+      alert("Error scanning Google Drive: " + String(e));
+      setState('idle');
+    }
   };
   const toggleFile = (id: string) =>
   setExcluded((prev) => {
@@ -76,7 +80,7 @@ export function DriveScanPanel({
   const totalMinutes = processable.
   filter((f) => !excluded.has(f.id)).
   reduce((acc, f) => acc + (f.durationMin ?? 0), 0);
-  const skippedCount = sampleScannedFiles.length - processable.length;
+  const skippedCount = scannedFiles.length - processable.length;
   return (
     <div className="space-y-5">
       {/* Link input */}
@@ -182,7 +186,7 @@ export function DriveScanPanel({
             role="list"
             aria-label="Scanned files">
             
-              {sampleScannedFiles.slice(0, revealed).map((f: ScannedFile) => {
+              {scannedFiles.slice(0, revealed).map((f: ScannedFile) => {
               const Icon = typeIcon[f.type];
               const isProcessable = f.type !== 'other';
               const included = isProcessable && !excluded.has(f.id);

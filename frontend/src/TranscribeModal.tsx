@@ -19,7 +19,7 @@ import {
 'lucide-react';
 import { Waveform } from './Waveform';
 import { DriveScanPanel } from './DriveScanPanel';
-import { startTranscription } from './transcriptions';
+import { startTranscription, startBatchTranscription } from './transcriptions';
 
 interface TranscribeModalProps {
   open: boolean;
@@ -105,6 +105,8 @@ export function TranscribeModal({ open, onClose }: TranscribeModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [driveCount, setDriveCount] = useState(0);
   const [driveFolder, setDriveFolder] = useState<string | null>(null);
+  const [selectedFileIds, setSelectedFileIds] = useState<string[]>([]);
+  const [folderUrl, setFolderUrl] = useState('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -154,19 +156,36 @@ export function TranscribeModal({ open, onClose }: TranscribeModalProps) {
   };
 
   const handleTranscribeSubmit = async () => {
-    if (!selectedRealFile) return;
+    if (sourceMode === 'upload' && !selectedRealFile) return;
+    if (sourceMode === 'drive' && selectedFileIds.length === 0) return;
+    
     setIsSubmitting(true);
     try {
-      await startTranscription(
-        selectedRealFile,
-        model,
-        language,
-        {
-          speakers: toggles.speakers,
-          translate: toggles.translate,
-          restore: toggles.restore
-        }
-      );
+      if (sourceMode === 'upload' && selectedRealFile) {
+        await startTranscription(
+          selectedRealFile,
+          model,
+          language,
+          {
+            speakers: toggles.speakers,
+            translate: toggles.translate,
+            restore: toggles.restore
+          }
+        );
+      } else if (sourceMode === 'drive') {
+        await startBatchTranscription(
+          folderUrl,
+          driveFolder || "Google Drive Folder",
+          selectedFileIds,
+          model,
+          language,
+          {
+            speakers: toggles.speakers,
+            translate: toggles.translate,
+            restore: toggles.restore
+          }
+        );
+      }
       onClose();
     } catch (e) {
       alert("Error submitting transcription task: " + String(e));
@@ -339,7 +358,14 @@ export function TranscribeModal({ open, onClose }: TranscribeModalProps) {
                     exit={{ opacity: 0, y: -6 }}
                     transition={{ duration: 0.2 }}
                   >
-                    <DriveScanPanel onSelectionChange={setDriveCount} onFolderChange={setDriveFolder} />
+                    <DriveScanPanel
+                      onSelectionChange={setDriveCount}
+                      onFolderChange={setDriveFolder}
+                      onSelectionChangeWithIds={(ids, url) => {
+                        setSelectedFileIds(ids);
+                        setFolderUrl(url);
+                      }}
+                    />
                   </motion.section>
                 )}
               </AnimatePresence>
