@@ -136,6 +136,7 @@ export async function startTranscription(
     'lang': language === 'Auto-detect' ? 'Automatic Detection' : language,
     'is_translate': String(options.translate),
     'vad_filter': String(options.restore),
+    'is_separate_bgm': String(options.restore),
     'is_diarize': String(options.speakers)
   });
 
