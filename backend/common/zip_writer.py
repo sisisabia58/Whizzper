@@ -20,6 +20,7 @@ def compile_srt(segments: List[dict]) -> str:
     return "\n".join(srt_lines)
 
 def build_srt_zip(tasks: List[Task]) -> bytes:
+    import os
     zip_buffer = io.BytesIO()
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
         for task in tasks:
@@ -30,5 +31,8 @@ def build_srt_zip(tasks: List[Task]) -> bytes:
                     filename = f"{filename}.srt"
                 # Use source path to structure within the ZIP file
                 zip_path = task.source_path or filename
+                base, ext = os.path.splitext(zip_path)
+                if ext.lower() != ".srt":
+                    zip_path = f"{base}.srt"
                 zip_file.writestr(zip_path, srt_content)
     return zip_buffer.getvalue()

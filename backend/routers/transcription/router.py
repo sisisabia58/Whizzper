@@ -200,7 +200,8 @@ async def queue_batch_transcription(
     from backend.db.task.models import Task, TaskStatus, TaskType
 
     batch_id = str(uuid.uuid4())
-    selected_ids = payload.get("selected_file_ids", [])
+    files_payload = payload.get("files", [])
+    selected_ids = [f.get("file_id") for f in files_payload if f.get("file_id")]
     folder_name = payload.get("folder_name", "Batch Job")
     folder_url = payload.get("folder_url", "")
     
@@ -215,16 +216,20 @@ async def queue_batch_transcription(
     )
     
     # Queue each child file
-    for file_id in selected_ids:
-        # Create Child Task
+    for f in files_payload:
+        file_id = f.get("file_id")
+        file_name = f.get("name", f"Drive_File_{file_id}")
+        source_path = f.get("path")
+        
         add_task_to_db(
             session=session,
             status=TaskStatus.QUEUED,
-            file_name=f"Drive_File_{file_id}",
+            file_name=file_name,
             task_type=TaskType.TRANSCRIPTION,
             task_params=payload,
             batch_id=batch_id,
-            source_file_id=file_id
+            source_file_id=file_id,
+            source_path=source_path
         )
         
     background_tasks.add_task(
@@ -326,12 +331,13 @@ async def run_batch_dispatcher(batch_id: str, selected_ids: list, task_params: d
                     diarization=DiarizationParams(**diar_d)
                 )
                 
+                progress_callback = create_progress_callback(task.uuid)
                 segments, elapsed_time = get_pipeline().run(
                     audio,
                     gr.Progress(),
                     "SRT",
                     False,
-                    None,
+                    progress_callback if not is_modal else None,
                     *params.to_list()
                 )
                 segments = [seg.model_dump() for seg in segments]
