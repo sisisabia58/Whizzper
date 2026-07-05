@@ -58,10 +58,27 @@ translation:
     api_key: ""
     is_pro: false
     source_lang: "Automatic Detection"
-    target_lang: "English"
+    target_lang: "EN"
   nllb:
     model_size: "facebook/nllb-200-1.3B"
     source_lang: null
     target_lang: null
     max_length: 200
   add_timestamp: false
+
+presets:
+  fast_draft:
+    model_size: "small"
+    compute_type: "int8"
+    beam_size: 1
+    vad_filter: true
+  balanced:
+    model_size: "medium"
+    compute_type: "float16"
+    beam_size: 2
+    vad_filter: true
+  best_quality:
+    model_size: "large-v3"
+    compute_type: "float16"
+    beam_size: 5
+    vad_filter: true
