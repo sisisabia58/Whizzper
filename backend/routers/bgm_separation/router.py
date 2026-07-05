@@ -32,10 +32,12 @@ def get_bgm_separation_inferencer() -> 'MusicSeparator':
     inferencer = MusicSeparator(
         output_dir=os.path.join(BACKEND_CACHE_DIR, "UVR")
     )
-    inferencer.update_model(
-        model_name=config["model_size"],
-        device=config["device"]
-    )
+    # Skip loading model weights on CPU-only hosts where Modal handles all inference
+    if not os.environ.get("MODAL_WEB_ENDPOINT_URL"):
+        inferencer.update_model(
+            model_name=config["model_size"],
+            device=config["device"]
+        )
     return inferencer
 
 

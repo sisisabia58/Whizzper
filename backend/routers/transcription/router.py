@@ -42,14 +42,18 @@ def create_progress_callback(identifier: str):
 
 @functools.lru_cache
 def get_pipeline() -> 'FasterWhisperInference':
+    import os
     config = load_server_config()["whisper"]
     inferencer = FasterWhisperInference(
         output_dir=BACKEND_CACHE_DIR
     )
-    inferencer.update_model(
-        model_size=config["model_size"],
-        compute_type=config["compute_type"]
-    )
+    # When a Modal endpoint is configured all GPU inference is dispatched remotely.
+    # Skip loading the local model to avoid float16/CUDA errors on CPU-only hosts.
+    if not os.environ.get("MODAL_WEB_ENDPOINT_URL"):
+        inferencer.update_model(
+            model_size=config["model_size"],
+            compute_type=config["compute_type"]
+        )
     return inferencer
 
 

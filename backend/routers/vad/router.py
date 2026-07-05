@@ -1,4 +1,5 @@
 import functools
+import os
 import numpy as np
 from faster_whisper.vad import VadOptions
 from fastapi import (
@@ -22,7 +23,9 @@ vad_router = APIRouter(prefix="/vad", tags=["Voice Activity Detection"])
 @functools.lru_cache
 def get_vad_model() -> SileroVAD:
     inferencer = SileroVAD()
-    inferencer.update_model()
+    # Skip loading model weights on CPU-only hosts where Modal handles all inference
+    if not os.environ.get("MODAL_WEB_ENDPOINT_URL"):
+        inferencer.update_model()
     return inferencer
 
 
