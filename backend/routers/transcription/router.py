@@ -68,24 +68,65 @@ def run_transcription(
     params: TranscriptionPipelineParams,
     identifier: str,
 ) -> List[Segment]:
+    import threading
+    import time
+    import os
+
     update_task_status_in_db(
         identifier=identifier,
         update_data={
             "uuid": identifier,
             "status": TaskStatus.IN_PROGRESS,
+            "progress": 0.05,
             "updated_at": datetime.utcnow()
         },
     )
 
+    stop_progress_event = threading.Event()
+
+    def simulate_progress():
+        # Incremental loader for Modal serverless GPU execution
+        current_progress = 0.05
+        while not stop_progress_event.is_set() and current_progress < 0.92:
+            time.sleep(1.5)
+            if stop_progress_event.is_set():
+                break
+            current_progress += 0.04
+            current_progress = min(current_progress, 0.92)
+            try:
+                update_task_status_in_db(
+                    identifier=identifier,
+                    update_data={
+                        "uuid": identifier,
+                        "status": TaskStatus.IN_PROGRESS,
+                        "progress": round(current_progress, 2),
+                        "updated_at": datetime.utcnow()
+                    },
+                )
+            except Exception:
+                pass
+
+    is_modal = bool(os.environ.get("MODAL_WEB_ENDPOINT_URL"))
+    progress_thread = None
+    if is_modal:
+        progress_thread = threading.Thread(target=simulate_progress, daemon=True)
+        progress_thread.start()
+
     progress_callback = create_progress_callback(identifier)
-    segments, elapsed_time = get_pipeline().run(
-        audio,
-        gr.Progress(),
-        "SRT",
-        False,
-        progress_callback,  
-        *params.to_list()
-    )
+    try:
+        segments, elapsed_time = get_pipeline().run(
+            audio,
+            gr.Progress(),
+            "SRT",
+            False,
+            progress_callback if not is_modal else None,  
+            *params.to_list()
+        )
+    finally:
+        if progress_thread:
+            stop_progress_event.set()
+            progress_thread.join(timeout=1.0)
+
     segments = [seg.model_dump() for seg in segments]
 
     update_task_status_in_db(
