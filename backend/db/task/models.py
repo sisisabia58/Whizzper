@@ -104,7 +104,7 @@ class Task(SQLModel, table=True):
     )
     status: Optional[TaskStatus] = Field(
         default=None,
-        sa_column=Field(sa_column=SQLAlchemyEnum(TaskStatus)),
+        sa_column=Column(SQLAlchemyEnum(TaskStatus)),
         description="Current status of the task",
     )
     result: Optional[dict] = Field(
@@ -114,7 +114,7 @@ class Task(SQLModel, table=True):
     )
     result_type: Optional[ResultType] = Field(
         default=ResultType.JSON,
-        sa_column=Field(sa_column=SQLAlchemyEnum(ResultType)),
+        sa_column=Column(SQLAlchemyEnum(ResultType)),
         description="Result type whether it's a filepath or JSON"
     )
     file_name: Optional[str] = Field(
@@ -135,7 +135,7 @@ class Task(SQLModel, table=True):
     )
     task_type: Optional[TaskType] = Field(
         default=None,
-        sa_column=Field(sa_column=SQLAlchemyEnum(TaskType)),
+        sa_column=Column(SQLAlchemyEnum(TaskType)),
         description="Type/category of the task"
     )
     task_params: Optional[dict] = Field(

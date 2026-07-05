@@ -54,10 +54,22 @@ async def lifespan(app: FastAPI):
             if "uuid" not in columns:
                 # Table is legacy. Rename it to legacy_tasks to avoid conflict.
                 with engine.begin() as conn:
-                    # CASCADE is supported in PostgreSQL, fallback to standard drop in SQLite
                     drop_sql = "DROP TABLE IF EXISTS legacy_tasks CASCADE" if "postgres" in str(engine.url) else "DROP TABLE IF EXISTS legacy_tasks"
                     conn.execute(text(drop_sql))
                     conn.execute(text("ALTER TABLE tasks RENAME TO legacy_tasks"))
+            else:
+                # Test query to check if the schema is fully healthy and matches the new SQLModel definitions
+                try:
+                    with engine.connect() as conn:
+                        conn.execute(text("SELECT uuid, status, task_params FROM tasks LIMIT 1"))
+                except Exception as schema_err:
+                    import logging
+                    logging.getLogger("uvicorn.error").warning(
+                        f"Database schema mismatch detected: {schema_err}. Rebuilding tasks table..."
+                    )
+                    with engine.begin() as conn:
+                        drop_sql = "DROP TABLE IF EXISTS tasks CASCADE" if "postgres" in str(engine.url) else "DROP TABLE IF EXISTS tasks"
+                        conn.execute(text(drop_sql))
     except Exception as db_err:
         import logging
         logging.getLogger("uvicorn.error").warning(f"Database self-healing warning: {db_err}")
