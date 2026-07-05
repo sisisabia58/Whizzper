@@ -92,7 +92,7 @@ class SileroVAD:
             vad_options = VadOptions(**kwargs)
 
         threshold = vad_options.threshold
-        neg_threshold = vad_options.neg_threshold
+        neg_threshold = getattr(vad_options, "neg_threshold", None)
         min_speech_duration_ms = vad_options.min_speech_duration_ms
         max_speech_duration_s = vad_options.max_speech_duration_s
         min_silence_duration_ms = vad_options.min_silence_duration_ms
