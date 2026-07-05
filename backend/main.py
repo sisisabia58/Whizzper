@@ -41,8 +41,27 @@ async def lifespan(app: FastAPI):
     read_env("DB_URL")
 
     # Automatically initialize database tables
+    from sqlalchemy import inspect, text
     from backend.db.db_instance import Base
     import backend.db.models
+    
+    # Self-heal legacy table structure conflicts on startup
+    inspector = inspect(engine)
+    try:
+        tables = inspector.get_table_names()
+        if "tasks" in tables:
+            columns = [c["name"] for c in inspector.get_columns("tasks")]
+            if "uuid" not in columns:
+                # Table is legacy. Rename it to legacy_tasks to avoid conflict.
+                with engine.begin() as conn:
+                    # CASCADE is supported in PostgreSQL, fallback to standard drop in SQLite
+                    drop_sql = "DROP TABLE IF EXISTS legacy_tasks CASCADE" if "postgres" in str(engine.url) else "DROP TABLE IF EXISTS legacy_tasks"
+                    conn.execute(text(drop_sql))
+                    conn.execute(text("ALTER TABLE tasks RENAME TO legacy_tasks"))
+    except Exception as db_err:
+        import logging
+        logging.getLogger("uvicorn.error").warning(f"Database self-healing warning: {db_err}")
+
     Base.metadata.create_all(bind=engine)
 
     from sqlmodel import SQLModel
