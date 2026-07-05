@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
   Folder,
   ChevronDown,
@@ -172,25 +172,8 @@ export function JobRow({ job, index }: JobRowProps) {
       </div>
 
       {/* Expanded child files */}
-      <AnimatePresence initial={false}>
-        {expanded &&
-        <motion.div
-          initial={{
-            height: 0,
-            opacity: 0
-          }}
-          animate={{
-            height: 'auto',
-            opacity: 1
-          }}
-          exit={{
-            height: 0,
-            opacity: 0
-          }}
-          transition={{
-            duration: 0.25
-          }}
-          className="overflow-hidden">
+      {expanded && (
+        <div className="overflow-hidden">
           
             <ul className="border-t border-zinc-100 divide-y divide-zinc-100">
               {job.files.map((f) => {
@@ -278,9 +261,8 @@ export function JobRow({ job, index }: JobRowProps) {
 
             })}
             </ul>
-          </motion.div>
-        }
-      </AnimatePresence>
+          </div>
+      )}
     </motion.div>);
 
 }
