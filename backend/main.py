@@ -61,15 +61,18 @@ async def lifespan(app: FastAPI):
                 # Test query to check if the schema is fully healthy and matches the new SQLModel definitions
                 try:
                     with engine.connect() as conn:
-                        conn.execute(text("SELECT uuid, status, task_params FROM tasks LIMIT 1"))
+                        conn.execute(text("SELECT uuid, status, task_params, batch_id FROM tasks LIMIT 1"))
+                        conn.execute(text("SELECT id, batch_id, status FROM batch_jobs LIMIT 1"))
                 except Exception as schema_err:
                     import logging
                     logging.getLogger("uvicorn.error").warning(
-                        f"Database schema mismatch detected: {schema_err}. Rebuilding tasks table..."
+                        f"Database schema mismatch detected: {schema_err}. Rebuilding database tables..."
                     )
                     with engine.begin() as conn:
-                        drop_sql = "DROP TABLE IF EXISTS tasks CASCADE" if "postgres" in str(engine.url) else "DROP TABLE IF EXISTS tasks"
-                        conn.execute(text(drop_sql))
+                        drop_tasks = "DROP TABLE IF EXISTS tasks CASCADE" if "postgres" in str(engine.url) else "DROP TABLE IF EXISTS tasks"
+                        drop_batches = "DROP TABLE IF EXISTS batch_jobs CASCADE" if "postgres" in str(engine.url) else "DROP TABLE IF EXISTS batch_jobs"
+                        conn.execute(text(drop_tasks))
+                        conn.execute(text(drop_batches))
     except Exception as db_err:
         import logging
         logging.getLogger("uvicorn.error").warning(f"Database self-healing warning: {db_err}")
@@ -78,6 +81,7 @@ async def lifespan(app: FastAPI):
 
     from sqlmodel import SQLModel
     import backend.db.task.models
+    import backend.db.batch.models
     SQLModel.metadata.create_all(bind=engine)
 
     transcription_pipeline = get_pipeline()
@@ -113,6 +117,8 @@ app.include_router(transcription_router, prefix="/api")
 app.include_router(vad_router, prefix="/api")
 app.include_router(bgm_separation_router, prefix="/api")
 app.include_router(task_router, prefix="/api")
+from backend.routers.drive.router import drive_router
+app.include_router(drive_router, prefix="/api")
 
 
 @app.get("/health")
