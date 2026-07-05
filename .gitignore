@@ -12,4 +12,7 @@ models/
 modules/yt_tmp.wav
 .codegraph/
 *.db
-.omo/
+.omo/
+.agents/
+docs/
+
