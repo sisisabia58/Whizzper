@@ -131,10 +131,33 @@ def health_check():
     except Exception:
         db_ok = False
 
+    pool_data = []
+    try:
+        from backend.routers.transcription.router import modal_pool
+        if modal_pool:
+            for ep in modal_pool.endpoints:
+                pool_data.append({
+                    "endpoint": ep,
+                    "inflight": modal_pool.counters.get(ep),
+                    "healthy": ep in modal_pool.healthy_endpoints(),
+                    "consecutive_failures": modal_pool._consecutive_failures.get(ep, 0)
+                })
+    except Exception:
+        pass
+
     status_code = 200 if (db_ok and redis_ok) else 503
+    
+    response_body = {
+        "status": "ok" if status_code == 200 else "degraded",
+        "database": db_ok,
+        "redis": redis_ok
+    }
+    if pool_data:
+        response_body["pool"] = pool_data
+
     return Response(
         status_code=status_code,
-        content=json.dumps({"status": "ok" if status_code == 200 else "degraded", "database": db_ok, "redis": redis_ok}),
+        content=json.dumps(response_body),
         media_type="application/json"
     )
 
