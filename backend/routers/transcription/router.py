@@ -146,26 +146,28 @@ def run_transcription(
             last_err = None
             success = False
             for attempt in range(max_retries_pool + 1):
-                endpoint = modal_pool.pick()
-                if not endpoint:
-                    raise RuntimeError("No healthy Modal endpoints available.")
                 try:
                     with modal_pool.acquire() as ep:
-                        segments, elapsed_time = get_pipeline(endpoint_url=ep).run(
-                            audio,
-                            gr.Progress(),
-                            "SRT",
-                            False,
-                            None,
-                            *params.to_list()
-                        )
-                        modal_pool.record_success(ep)
-                        success = True
-                        break
+                        try:
+                            segments, elapsed_time = get_pipeline(endpoint_url=ep).run(
+                                audio,
+                                gr.Progress(),
+                                "SRT",
+                                False,
+                                None,
+                                *params.to_list()
+                            )
+                            modal_pool.record_success(ep)
+                            success = True
+                            break
+                        except Exception as trans_err:
+                            modal_pool.record_failure(ep)
+                            raise trans_err
                 except Exception as e:
-                    if endpoint:
-                        modal_pool.record_failure(endpoint)
                     last_err = e
+                    if "capacity limit exceeded" in str(e) or "No healthy endpoints" in str(e):
+                        import time
+                        time.sleep(0.5)
             if not success:
                 raise last_err or RuntimeError("Modal execution failed on all retries")
     finally:
@@ -388,26 +390,27 @@ def run_batch_dispatcher(batch_id: str, selected_ids: list, task_params: dict):
                 last_err = None
                 success = False
                 for attempt in range(max_retries_pool + 1):
-                    endpoint = modal_pool.pick()
-                    if not endpoint:
-                        raise RuntimeError("No healthy Modal endpoints available.")
                     try:
                         with modal_pool.acquire() as ep:
-                            segments, elapsed_time = get_pipeline(endpoint_url=ep).run(
-                                audio,
-                                gr.Progress(),
-                                "SRT",
-                                False,
-                                None,
-                                *params.to_list()
-                            )
-                            modal_pool.record_success(ep)
-                            success = True
-                            break
+                            try:
+                                segments, elapsed_time = get_pipeline(endpoint_url=ep).run(
+                                    audio,
+                                    gr.Progress(),
+                                    "SRT",
+                                    False,
+                                    None,
+                                    *params.to_list()
+                                )
+                                modal_pool.record_success(ep)
+                                success = True
+                                break
+                            except Exception as trans_err:
+                                modal_pool.record_failure(ep)
+                                raise trans_err
                     except Exception as e:
-                        if endpoint:
-                            modal_pool.record_failure(endpoint)
                         last_err = e
+                        if "capacity limit exceeded" in str(e) or "No healthy endpoints" in str(e):
+                            time.sleep(0.5)
                 if not success:
                     raise last_err or RuntimeError("Modal execution failed on all retries")
             segments = [seg.model_dump() for seg in segments]
