@@ -61,7 +61,7 @@ def create_progress_callback(identifier: str):
 
 
 @functools.lru_cache
-def get_pipeline() -> 'BaseTranscriptionPipeline':
+def get_pipeline(endpoint_url: Optional[str] = None) -> 'BaseTranscriptionPipeline':
     import os
     from modules.whisper.whisper_factory import WhisperFactory
     config = load_server_config()["whisper"]
@@ -70,11 +70,12 @@ def get_pipeline() -> 'BaseTranscriptionPipeline':
     # when MODAL_WEB_ENDPOINT_URL is configured.
     inferencer = WhisperFactory.create_whisper_inference(
         whisper_type="faster-whisper",
-        output_dir=BACKEND_CACHE_DIR
+        output_dir=BACKEND_CACHE_DIR,
+        endpoint_url=endpoint_url
     )
     
     # If we are not running on Modal, initialize/update local model settings
-    if not os.environ.get("MODAL_WEB_ENDPOINT_URL"):
+    if not os.environ.get("MODAL_WEB_ENDPOINT_URL") and not os.environ.get("MODAL_ENDPOINTS") and not endpoint_url:
         inferencer.update_model(
             model_size=config["model_size"],
             compute_type=config["compute_type"]
