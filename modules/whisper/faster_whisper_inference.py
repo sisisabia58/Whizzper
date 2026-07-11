@@ -17,6 +17,73 @@ from modules.whisper.data_classes import *
 from modules.whisper.base_transcription_pipeline import BaseTranscriptionPipeline
 
 
+def split_long_segments(segments, max_words=12, max_duration=6.0):
+    new_segments = []
+    
+    for seg in segments:
+        if not hasattr(seg, "words") or seg.words is None or len(seg.words) == 0:
+            new_segments.append(seg)
+            continue
+            
+        current_words = []
+        seg_start = None
+        
+        for w in seg.words:
+            if seg_start is None:
+                seg_start = w.start
+                
+            current_words.append(w)
+            
+            # Split conditions:
+            # 1. Punctuation ending a clause/sentence (with a minimum of 4 words to avoid tiny chunks)
+            ends_clause = w.word.strip().endswith(('.', '?', '!', ';', ','))
+            # 2. Maximum words limit reached
+            too_many_words = len(current_words) >= max_words
+            # 3. Maximum duration reached
+            too_long = (w.end - seg_start) >= max_duration
+            
+            if (ends_clause and len(current_words) >= 4) or too_many_words or too_long:
+                from faster_whisper.transcribe import Segment as FWSegment
+                text = "".join(x.word for x in current_words).strip()
+                new_segments.append(FWSegment(
+                    id=0,
+                    seek=seg.seek,
+                    start=seg_start,
+                    end=w.end,
+                    text=text,
+                    tokens=[],
+                    temperature=seg.temperature,
+                    avg_logprob=seg.avg_logprob,
+                    compression_ratio=seg.compression_ratio,
+                    no_speech_prob=seg.no_speech_prob,
+                    words=current_words
+                ))
+                current_words = []
+                seg_start = None
+                
+        if current_words:
+            from faster_whisper.transcribe import Segment as FWSegment
+            text = "".join(x.word for x in current_words).strip()
+            new_segments.append(FWSegment(
+                id=0,
+                seek=seg.seek,
+                start=seg_start if seg_start is not None else seg.start,
+                end=current_words[-1].end,
+                text=text,
+                tokens=[],
+                temperature=seg.temperature,
+                avg_logprob=seg.avg_logprob,
+                compression_ratio=seg.compression_ratio,
+                no_speech_prob=seg.no_speech_prob,
+                words=current_words
+            ))
+            
+    for idx, s in enumerate(new_segments):
+        s.id = idx
+        
+    return new_segments
+
+
 class FasterWhisperInference(BaseTranscriptionPipeline):
     def __init__(self,
                  model_dir: str = FASTER_WHISPER_MODELS_DIR,
@@ -122,6 +189,8 @@ class FasterWhisperInference(BaseTranscriptionPipeline):
                     kwargs["hotwords"] = params.hotwords
 
                 segments, info = pipeline.transcribe(audio=audio, **kwargs)
+                segments = list(segments)
+                segments = split_long_segments(segments)
             except Exception as e:
                 print(f"[WhisperInference] Batched transcription failed: {e}. Falling back to sequential transcription.")
                 segments = None
