@@ -108,12 +108,37 @@ class ModalWhisperInference(BaseTranscriptionPipeline):
                 except Exception:
                     pass
         elif isinstance(audio, np.ndarray):
-            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
-                sf.write(tmp.name, audio, 16000)
-                tmp_path = tmp.name
-            with open(tmp_path, "rb") as f:
-                audio_bytes = f.read()
-            os.remove(tmp_path)
+            import soundfile as sf
+            import subprocess
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp_wav:
+                sf.write(tmp_wav.name, audio, 16000)
+                wav_path = tmp_wav.name
+            
+            with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp_mp3:
+                mp3_path = tmp_mp3.name
+            
+            try:
+                cmd = ["ffmpeg", "-y", "-i", wav_path, "-vn", "-c:a", "libmp3lame", "-b:a", "64k", mp3_path]
+                subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+                with open(mp3_path, "rb") as f:
+                    audio_bytes = f.read()
+                file_name = "audio.mp3"
+            except Exception as ex:
+                logger.warning(f"ffmpeg compression from NumPy array failed, falling back: {ex}")
+                with open(wav_path, "rb") as f:
+                    audio_bytes = f.read()
+                file_name = "audio.wav"
+            finally:
+                if os.path.exists(wav_path):
+                    try:
+                        os.remove(wav_path)
+                    except Exception:
+                        pass
+                if os.path.exists(mp3_path):
+                    try:
+                        os.remove(mp3_path)
+                    except Exception:
+                        pass
         else:
             audio_bytes = audio.read()
 
