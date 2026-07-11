@@ -64,6 +64,25 @@ class TranscriptionRequest(BaseModel):
     is_separate_bgm: Optional[str] = "False"
     extra_params: Optional[Dict[str, Any]] = None
 
+# Globally cache the pipeline instance in the container scope to avoid re-instantiation overhead on warm reuse.
+_pipeline_cache = {}
+
+def get_pipeline():
+    global _pipeline_cache
+    if "pipeline" not in _pipeline_cache:
+        from modules.whisper.faster_whisper_inference import FasterWhisperInference
+        model_dir = os.path.join(CACHE_DIR, "whisper")
+        diar_dir = os.path.join(CACHE_DIR, "diarization")
+        uvr_dir = os.path.join(CACHE_DIR, "uvr")
+        out_dir = os.path.join(CACHE_DIR, "outputs")
+        _pipeline_cache["pipeline"] = FasterWhisperInference(
+            model_dir=model_dir,
+            output_dir=out_dir,
+            diarization_model_dir=diar_dir,
+            uvr_model_dir=uvr_dir
+        )
+    return _pipeline_cache["pipeline"]
+
 
 @app.function(
     image=whizzper_image,
@@ -107,17 +126,7 @@ def run_transcription_gpu(
         tmp_audio_path = tmp_file.name
 
     try:
-        model_dir = os.path.join(CACHE_DIR, "whisper")
-        diar_dir = os.path.join(CACHE_DIR, "diarization")
-        uvr_dir = os.path.join(CACHE_DIR, "uvr")
-        out_dir = os.path.join(CACHE_DIR, "outputs")
-
-        pipeline = FasterWhisperInference(
-            model_dir=model_dir,
-            output_dir=out_dir,
-            diarization_model_dir=diar_dir,
-            uvr_model_dir=uvr_dir
-        )
+        pipeline = get_pipeline()
 
         lang_val = lang
         if lang_val in ("automatic detection", "AUTO", "", "none", "None", "null"):
