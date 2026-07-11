@@ -27,13 +27,22 @@ def test_batch_rollup_calculation():
     )
     
     # Create two tasks, one completed, one failed
-    add_task_to_db(session=session, status=TaskStatus.COMPLETED, batch_id=batch_id, file_name="file1.mp3")
-    add_task_to_db(session=session, status=TaskStatus.FAILED, batch_id=batch_id, file_name="file2.mp3")
+    t1_uuid = add_task_to_db(session=session, status=TaskStatus.COMPLETED, batch_id=batch_id, file_name="file1.mp3")
+    t2_uuid = add_task_to_db(session=session, status=TaskStatus.FAILED, batch_id=batch_id, file_name="file2.mp3")
+    
+    from backend.db.task.models import Task
+    t1 = session.query(Task).filter(Task.uuid == t1_uuid).first()
+    t1.writeback_status = "UPLOADED"
+    t2 = session.query(Task).filter(Task.uuid == t2_uuid).first()
+    t2.writeback_status = "FAILED"
+    session.commit()
     
     update_batch_rollup(batch_id=batch_id, session=session)
     batch = get_batch_from_db(batch_id, session)
     
     assert batch.completed_files == 1
     assert batch.failed_files == 1
+    assert batch.uploaded_files == 1
+    assert batch.writeback_failed_files == 1
     assert batch.status == "partial_failed"
     session.close()

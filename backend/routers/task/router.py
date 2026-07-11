@@ -160,6 +160,9 @@ async def get_batch_status(
         "total_files": batch.total_files,
         "completed_files": batch.completed_files,
         "failed_files": batch.failed_files,
+        "writeback_enabled": batch.writeback_enabled,
+        "uploaded_files": batch.uploaded_files,
+        "writeback_failed_files": batch.writeback_failed_files,
         "progress": round(aggregate_progress, 2),
         "children": [
             {
@@ -169,7 +172,9 @@ async def get_batch_status(
                 "status": c.status,
                 "progress": c.progress,
                 "duration": c.duration,
-                "error": c.error
+                "error": c.error,
+                "writeback_status": c.writeback_status or "NOT_APPLICABLE",
+                "writeback_error": c.writeback_error
             } for c in children
         ]
     }

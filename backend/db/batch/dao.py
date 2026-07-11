@@ -13,6 +13,9 @@ def add_batch_to_db(
     source_url: str,
     total_files: int,
     task_params: dict,
+    access_mode: str = "link",
+    connection_id: Optional[str] = None,
+    writeback_enabled: bool = False
 ):
     batch = BatchJob(
         batch_id=batch_id,
@@ -20,7 +23,10 @@ def add_batch_to_db(
         source_url=source_url,
         total_files=total_files,
         task_params=task_params,
-        status="queued"
+        status="queued",
+        access_mode=access_mode,
+        connection_id=connection_id,
+        writeback_enabled=writeback_enabled
     )
     session.add(batch)
     session.commit()
@@ -40,6 +46,8 @@ def update_batch_rollup(batch_id: str, session: Session):
     batch.total_files = len(children)
     batch.completed_files = sum(1 for c in children if c.status == "completed")
     batch.failed_files = sum(1 for c in children if c.status == "failed")
+    batch.uploaded_files = sum(1 for c in children if c.writeback_status == "UPLOADED")
+    batch.writeback_failed_files = sum(1 for c in children if c.writeback_status == "FAILED")
     
     # Calculate status rollup
     active = sum(1 for c in children if c.status in ["queued", "in_progress"])
