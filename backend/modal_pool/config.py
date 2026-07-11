@@ -5,18 +5,24 @@ def get_pool_config() -> Dict[str, Any]:
     endpoints_str = os.environ.get("MODAL_ENDPOINTS", "")
     endpoints: List[str] = []
     
+    seen = set()
+    
+    # Process MODAL_ENDPOINTS
     if endpoints_str:
-        # Split and deduplicate
-        seen = set()
         for ep in endpoints_str.split(","):
             ep_clean = ep.strip()
             if ep_clean and ep_clean not in seen:
                 endpoints.append(ep_clean)
                 seen.add(ep_clean)
     else:
+        # Process MODAL_WEB_ENDPOINT_URL as fallback
         fallback = os.environ.get("MODAL_WEB_ENDPOINT_URL", "").strip()
         if fallback:
-            endpoints.append(fallback)
+            for ep in fallback.split(","):
+                ep_clean = ep.strip()
+                if ep_clean and ep_clean not in seen:
+                    endpoints.append(ep_clean)
+                    seen.add(ep_clean)
             
     if not endpoints:
         raise ValueError("No Modal endpoints configured. Please set MODAL_ENDPOINTS or MODAL_WEB_ENDPOINT_URL.")

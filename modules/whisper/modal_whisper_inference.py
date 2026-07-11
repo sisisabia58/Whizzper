@@ -26,7 +26,11 @@ class ModalWhisperInference(BaseTranscriptionPipeline):
                  output_dir: str = "outputs",
                  **kwargs):
         super().__init__(output_dir=output_dir)
-        self.endpoint_url = endpoint_url or os.environ.get("MODAL_WEB_ENDPOINT_URL") or "https://revigefarta--whizzper-backend-transcribe-endpoint.modal.run"
+        raw_url = endpoint_url or os.environ.get("MODAL_WEB_ENDPOINT_URL") or "https://revigefarta--whizzper-backend-transcribe-endpoint.modal.run"
+        if "," in raw_url:
+            self.endpoint_url = raw_url.split(",")[0].strip()
+        else:
+            self.endpoint_url = raw_url.strip()
         self.device = "modal-gpu"
         self.available_models = ["tiny", "base", "small", "medium", "large", "large-v1", "large-v2", "large-v3"]
         self.available_compute_types = ["float16", "int8", "float32"]
