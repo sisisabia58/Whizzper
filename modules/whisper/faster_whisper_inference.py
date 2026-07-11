@@ -71,6 +71,10 @@ class FasterWhisperInference(BaseTranscriptionPipeline):
         if params.model_size != self.current_model_size or self.model is None or self.current_compute_type != params.compute_type:
             self.update_model(params.model_size, params.compute_type, progress)
 
+        temp = params.temperature
+        if temp == 0.0:
+            temp = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0]
+
         segments, info = self.model.transcribe(
             audio=audio,
             language=params.lang,
@@ -80,7 +84,8 @@ class FasterWhisperInference(BaseTranscriptionPipeline):
             no_speech_threshold=params.no_speech_threshold,
             best_of=params.best_of,
             patience=params.patience,
-            temperature=params.temperature,
+            temperature=temp,
+            condition_on_previous_text=params.condition_on_previous_text,
             initial_prompt=params.initial_prompt,
             compression_ratio_threshold=params.compression_ratio_threshold,
             length_penalty=params.length_penalty,
