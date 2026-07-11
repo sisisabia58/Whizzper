@@ -69,6 +69,7 @@ class TranscriptionRequest(BaseModel):
     image=whizzper_image,
     gpu="T4",
     timeout=600,
+    max_containers=10,
     volumes={CACHE_DIR: models_volume},
     secrets=[modal.Secret.from_name("whizzper-secrets")] if os.environ.get("USE_MODAL_SECRET") else []
 )
@@ -191,6 +192,7 @@ def run_transcription_gpu(
     image=whizzper_image,
     gpu="T4",
     timeout=600,
+    max_containers=10,
     volumes={CACHE_DIR: models_volume},
     secrets=[modal.Secret.from_name("whizzper-secrets")] if os.environ.get("USE_MODAL_SECRET") else []
 )

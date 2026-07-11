@@ -138,6 +138,19 @@ class ModalWhisperInference(BaseTranscriptionPipeline):
         start_time = time.time()
 
         def _call_modal():
+            # If load balancer endpoints are active, we must target the specific URL via HTTP post
+            if os.environ.get("MODAL_ENDPOINTS") or self.endpoint_url:
+                logger.info(f"Targeting Modal endpoint via HTTP POST: {self.endpoint_url}")
+                json_bytes = json.dumps(payload).encode("utf-8")
+                headers = {
+                    "Content-Type": "application/json",
+                    "Content-Length": str(len(json_bytes))
+                }
+                response = requests.post(self.endpoint_url, data=json_bytes, headers=headers, timeout=600)
+                if response.status_code != 200:
+                    raise RuntimeError(f"Modal inference failed [{response.status_code}]: {response.text}")
+                return response.json()
+
             try:
                 import modal
                 f = modal.Function.from_name("whizzper-backend", "run_transcription_gpu")

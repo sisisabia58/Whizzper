@@ -106,7 +106,7 @@ def run_transcription(
             except Exception:
                 pass
 
-    is_modal = bool(os.environ.get("MODAL_WEB_ENDPOINT_URL"))
+    is_modal = bool(os.environ.get("MODAL_WEB_ENDPOINT_URL") or os.environ.get("MODAL_ENDPOINTS"))
     progress_thread = None
     if is_modal:
         progress_thread = threading.Thread(target=simulate_progress, daemon=True)
@@ -114,14 +114,41 @@ def run_transcription(
 
     progress_callback = create_progress_callback(identifier)
     try:
-        segments, elapsed_time = get_pipeline().run(
-            audio,
-            gr.Progress(),
-            "SRT",
-            False,
-            progress_callback if not is_modal else None,  
-            *params.to_list()
-        )
+        if not is_modal or not modal_pool:
+            segments, elapsed_time = get_pipeline().run(
+                audio,
+                gr.Progress(),
+                "SRT",
+                False,
+                progress_callback,
+                *params.to_list()
+            )
+        else:
+            last_err = None
+            success = False
+            for attempt in range(max_retries_pool + 1):
+                endpoint = modal_pool.pick()
+                if not endpoint:
+                    raise RuntimeError("No healthy Modal endpoints available.")
+                try:
+                    with modal_pool.acquire() as ep:
+                        segments, elapsed_time = get_pipeline(endpoint_url=ep).run(
+                            audio,
+                            gr.Progress(),
+                            "SRT",
+                            False,
+                            None,
+                            *params.to_list()
+                        )
+                        modal_pool.record_success(ep)
+                        success = True
+                        break
+                except Exception as e:
+                    if endpoint:
+                        modal_pool.record_failure(endpoint)
+                    last_err = e
+            if not success:
+                raise last_err or RuntimeError("Modal execution failed on all retries")
     finally:
         if progress_thread:
             stop_progress_event.set()
@@ -295,7 +322,7 @@ def run_batch_dispatcher(batch_id: str, selected_ids: list, task_params: dict):
                 except Exception:
                     pass
                     
-        is_modal = bool(os.environ.get("MODAL_WEB_ENDPOINT_URL"))
+        is_modal = bool(os.environ.get("MODAL_WEB_ENDPOINT_URL") or os.environ.get("MODAL_ENDPOINTS"))
         progress_thread = None
         if is_modal:
             progress_thread = threading.Thread(target=simulate_child_progress, daemon=True)
@@ -329,14 +356,41 @@ def run_batch_dispatcher(batch_id: str, selected_ids: list, task_params: dict):
             )
             
             progress_callback = create_progress_callback(task.uuid)
-            segments, elapsed_time = get_pipeline().run(
-                audio,
-                gr.Progress(),
-                "SRT",
-                False,
-                progress_callback if not is_modal else None,
-                *params.to_list()
-            )
+            if not is_modal or not modal_pool:
+                segments, elapsed_time = get_pipeline().run(
+                    audio,
+                    gr.Progress(),
+                    "SRT",
+                    False,
+                    progress_callback,
+                    *params.to_list()
+                )
+            else:
+                last_err = None
+                success = False
+                for attempt in range(max_retries_pool + 1):
+                    endpoint = modal_pool.pick()
+                    if not endpoint:
+                        raise RuntimeError("No healthy Modal endpoints available.")
+                    try:
+                        with modal_pool.acquire() as ep:
+                            segments, elapsed_time = get_pipeline(endpoint_url=ep).run(
+                                audio,
+                                gr.Progress(),
+                                "SRT",
+                                False,
+                                None,
+                                *params.to_list()
+                            )
+                            modal_pool.record_success(ep)
+                            success = True
+                            break
+                    except Exception as e:
+                        if endpoint:
+                            modal_pool.record_failure(endpoint)
+                        last_err = e
+                if not success:
+                    raise last_err or RuntimeError("Modal execution failed on all retries")
             segments = [seg.model_dump() for seg in segments]
             
             if progress_thread:
