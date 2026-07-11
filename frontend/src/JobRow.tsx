@@ -11,7 +11,7 @@ import {
   FileVideo,
   FileText } from
 'lucide-react';
-import { TranscriptJob, jobSummary, statusLabel } from './transcriptions';
+import { TranscriptJob, jobSummary, statusLabel, fetchTaskById } from './transcriptions';
 import { segmentsToSRT, segmentsToTXT, triggerDownload } from './TranscriptRow';
 interface JobRowProps {
   job: TranscriptJob;
@@ -198,16 +198,36 @@ export function JobRow({ job, index }: JobRowProps) {
               const FIcon = fs.icon;
               const TypeIcon = f.type === 'video' ? FileVideo : FileAudio;
               
-              const handleView = () => {
-                if (!f.result) return;
-                const txtContent = segmentsToTXT(f.result);
+              const handleView = async () => {
+                let activeResult = f.result;
+                if (!activeResult) {
+                  try {
+                    const taskData = await fetchTaskById(f.id);
+                    activeResult = taskData.result;
+                  } catch (err) {
+                    alert("Failed to view transcript: " + String(err));
+                    return;
+                  }
+                }
+                if (!activeResult) return;
+                const txtContent = segmentsToTXT(activeResult);
                 const txtFilename = f.name.substring(0, f.name.lastIndexOf('.')) + '.txt';
                 triggerDownload(txtContent, txtFilename, 'text/plain');
               };
               
-              const handleDownload = () => {
-                if (!f.result) return;
-                const srtContent = segmentsToSRT(f.result);
+              const handleDownload = async () => {
+                let activeResult = f.result;
+                if (!activeResult) {
+                  try {
+                    const taskData = await fetchTaskById(f.id);
+                    activeResult = taskData.result;
+                  } catch (err) {
+                    alert("Failed to download SRT: " + String(err));
+                    return;
+                  }
+                }
+                if (!activeResult) return;
+                const srtContent = segmentsToSRT(activeResult);
                 const srtFilename = f.name.substring(0, f.name.lastIndexOf('.')) + '.srt';
                 triggerDownload(srtContent, srtFilename, 'text/srt');
               };

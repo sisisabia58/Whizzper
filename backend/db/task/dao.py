@@ -102,7 +102,8 @@ def get_task_status_from_db(
 @handle_database_errors
 def get_all_tasks_status_from_db(session: Session):
     """Get all tasks from db"""
-    tasks = session.query(Task).order_by(Task.created_at.desc()).all()
+    from sqlalchemy.orm import defer
+    tasks = session.query(Task).options(defer(Task.result)).order_by(Task.created_at.desc()).all()
     return TasksResult(tasks=tasks)
 
 

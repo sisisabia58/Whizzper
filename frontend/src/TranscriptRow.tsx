@@ -11,7 +11,7 @@ import {
   AlertCircle,
   Clock } from
 'lucide-react';
-import { Transcript, statusLabel } from './transcriptions';
+import { Transcript, statusLabel, fetchTaskById } from './transcriptions';
 
 const statusStyles: Record<
   Transcript['status'],
@@ -78,6 +78,7 @@ export function triggerDownload(content: string, filename: string, mimeType: str
 
 export function TranscriptRow({ transcript, index }: TranscriptRowProps) {
   const {
+    id,
     name,
     type,
     durationMin,
@@ -95,16 +96,36 @@ export function TranscriptRow({ transcript, index }: TranscriptRowProps) {
   const isCompleted = status === 'completed';
   const isProcessing = status === 'processing';
 
-  const downloadSRT = () => {
-    if (!result) return;
-    const srtContent = segmentsToSRT(result);
+  const downloadSRT = async () => {
+    let activeResult = result;
+    if (!activeResult) {
+      try {
+        const taskData = await fetchTaskById(id);
+        activeResult = taskData.result;
+      } catch (err) {
+        alert("Failed to download SRT: " + String(err));
+        return;
+      }
+    }
+    if (!activeResult) return;
+    const srtContent = segmentsToSRT(activeResult);
     const srtFilename = name.substring(0, name.lastIndexOf('.')) + '.srt';
     triggerDownload(srtContent, srtFilename, 'text/srt');
   };
 
-  const downloadTXT = () => {
-    if (!result) return;
-    const txtContent = segmentsToTXT(result);
+  const downloadTXT = async () => {
+    let activeResult = result;
+    if (!activeResult) {
+      try {
+        const taskData = await fetchTaskById(id);
+        activeResult = taskData.result;
+      } catch (err) {
+        alert("Failed to download TXT: " + String(err));
+        return;
+      }
+    }
+    if (!activeResult) return;
+    const txtContent = segmentsToTXT(activeResult);
     const txtFilename = name.substring(0, name.lastIndexOf('.')) + '.txt';
     triggerDownload(txtContent, txtFilename, 'text/plain');
   };

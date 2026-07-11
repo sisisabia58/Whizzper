@@ -208,6 +208,31 @@ class Task(SQLModel, table=True):
         )
 
 
+class TaskSummary(BaseModel):
+    id: Optional[int] = None
+    uuid: str
+    status: Optional[TaskStatus] = None
+    result_type: Optional[ResultType] = None
+    file_name: Optional[str] = None
+    url: Optional[str] = None
+    audio_duration: Optional[float] = None
+    language: Optional[str] = None
+    task_type: Optional[TaskType] = None
+    task_params: Optional[dict] = None
+    batch_id: Optional[str] = None
+    source_file_id: Optional[str] = None
+    source_path: Optional[str] = None
+    duration: Optional[float] = None
+    error: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+    progress: Optional[float] = 0.0
+    source_parent_id: Optional[str] = None
+    writeback_status: Optional[str] = None
+    writeback_file_id: Optional[str] = None
+    writeback_error: Optional[str] = None
+
+
 class TasksResult(BaseModel):
-    tasks: List[Task]
+    tasks: List[TaskSummary]
 

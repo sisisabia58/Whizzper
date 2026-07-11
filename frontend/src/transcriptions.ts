@@ -306,3 +306,9 @@ export function groupTranscripts(list: Transcript[]): QueueItem[] {
   return result;
 }
 
+export async function fetchTaskById(id: string): Promise<any> {
+  const res = await fetch(`${API_BASE}/task/${id}`);
+  if (!res.ok) throw new Error("Failed to fetch task details");
+  return res.json();
+}
+
