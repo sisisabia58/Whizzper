@@ -165,6 +165,9 @@ class ModalWhisperInference(BaseTranscriptionPipeline):
             if os.environ.get("MODAL_ENDPOINTS") or self.endpoint_url:
                 logger.info(f"Targeting Modal endpoint via HTTP POST: {self.endpoint_url}")
                 json_bytes = json.dumps(payload).encode("utf-8")
+                raw_size_mb = len(audio_bytes) / (1024 * 1024)
+                payload_size_mb = len(json_bytes) / (1024 * 1024)
+                logger.info(f"Uploading audio payload: raw audio = {raw_size_mb:.2f} MB, base64 json = {payload_size_mb:.2f} MB")
                 headers = {
                     "Content-Type": "application/json",
                     "Content-Length": str(len(json_bytes))
