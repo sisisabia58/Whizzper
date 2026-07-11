@@ -13,13 +13,38 @@ def parse_folder_id(url: str) -> Optional[str]:
     return match.group(1) if match else None
 
 class DriveManager:
-    def __init__(self):
+    def __init__(self, credentials_dict: Optional[dict] = None):
         self.api_key = os.environ.get("GOOGLE_DRIVE_API_KEY")
-        self.service = build('drive', 'v3', developerKey=self.api_key) if self.api_key else None
+        if credentials_dict:
+            from google.oauth2.credentials import Credentials
+            creds = Credentials(**credentials_dict)
+            self.service = build('drive', 'v3', credentials=creds)
+        else:
+            self.service = build('drive', 'v3', developerKey=self.api_key) if self.api_key else None
+
+    def list_folders(self, parent_id: Optional[str] = None, page_token: Optional[str] = None) -> dict:
+        if not self.service:
+            raise ValueError("Google Drive service is not initialized")
+            
+        q = "mimeType = 'application/vnd.google-apps.folder' and trashed = false"
+        if parent_id:
+            q += f" and '{parent_id}' in parents"
+        else:
+            q += " and 'root' in parents"
+            
+        results = self.service.files().list(
+            q=q,
+            pageSize=50,
+            fields="nextPageToken, files(id, name, modifiedTime, owners)",
+            pageToken=page_token,
+            includeItemsFromAllDrives=True,
+            supportsAllDrives=True
+        ).execute()
+        return results
 
     def scan_folder(self, folder_id: str, current_path: str = "") -> List[Dict[str, Any]]:
         if not self.service:
-            raise ValueError("GOOGLE_DRIVE_API_KEY environment variable is missing")
+            raise ValueError("Google Drive service is not initialized")
         
         files_list = []
         page_token = None
@@ -56,7 +81,8 @@ class DriveManager:
                         "size_bytes": size,
                         "is_media": is_media,
                         "duration_sec": duration,
-                        "skipped_reason": "unsupported_type" if not is_media else None
+                        "skipped_reason": "unsupported_type" if not is_media else None,
+                        "parent_id": folder_id
                     })
             
             page_token = results.get('nextPageToken')
