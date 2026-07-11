@@ -177,6 +177,22 @@ class Task(SQLModel, table=True):
         default=0.0,
         description="Progress of the task"
     )
+    source_parent_id: Optional[str] = Field(
+        default=None,
+        description="Google Drive folder ID of parent directory"
+    )
+    writeback_status: Optional[str] = Field(
+        default=None,
+        description="Google Drive write-back status"
+    )
+    writeback_file_id: Optional[str] = Field(
+        default=None,
+        description="Google Drive file ID of uploaded SRT"
+    )
+    writeback_error: Optional[str] = Field(
+        default=None,
+        description="Error message during write-back"
+    )
 
     def to_response(self) -> "TaskStatusResponse":
         return TaskStatusResponse(

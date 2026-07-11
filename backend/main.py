@@ -61,8 +61,8 @@ async def lifespan(app: FastAPI):
                 # Test query to check if the schema is fully healthy and matches the new SQLModel definitions
                 try:
                     with engine.connect() as conn:
-                        conn.execute(text("SELECT uuid, status, task_params, batch_id FROM tasks LIMIT 1"))
-                        conn.execute(text("SELECT id, batch_id, status FROM batch_jobs LIMIT 1"))
+                        conn.execute(text("SELECT uuid, status, task_params, batch_id, source_parent_id, writeback_status FROM tasks LIMIT 1"))
+                        conn.execute(text("SELECT id, batch_id, status, access_mode, writeback_enabled FROM batch_jobs LIMIT 1"))
                 except Exception as schema_err:
                     import logging
                     logging.getLogger("uvicorn.error").warning(
