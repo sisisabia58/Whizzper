@@ -1,8 +1,31 @@
-from fastapi import APIRouter, HTTPException, Body
+from fastapi import APIRouter, HTTPException, Body, Depends, Response, status
+from sqlalchemy.orm import Session
+from backend.db.db_instance import get_db_session
 from modules.utils.drive_manager import DriveManager, parse_folder_id
 from datetime import datetime
 
 drive_router = APIRouter(prefix="/drive", tags=["Google Drive"])
+
+@drive_router.get("/connections")
+async def get_connections(owner_key: str, session: Session = Depends(get_db_session)):
+    from backend.db.drive.dao import list_connections_from_db
+    conns = list_connections_from_db(session, owner_key)
+    return {
+        "connections": [
+            {
+                "connection_id": c.connection_id,
+                "account_email": c.account_email,
+                "status": c.status
+            } for c in conns
+        ]
+    }
+
+@drive_router.delete("/connections/{connection_id}")
+async def delete_connection(connection_id: str, session: Session = Depends(get_db_session)):
+    from backend.db.drive.dao import delete_connection_from_db
+    if delete_connection_from_db(session, connection_id):
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    raise HTTPException(status_code=404, detail="Connection not found")
 
 @drive_router.post("/scan")
 async def scan_drive_folder(payload: dict = Body(...)):

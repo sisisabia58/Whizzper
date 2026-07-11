@@ -13,6 +13,7 @@ from backend.routers.transcription.router import transcription_router, get_pipel
 from backend.routers.vad.router import get_vad_model, vad_router
 from backend.routers.bgm_separation.router import get_bgm_separation_inferencer, bgm_separation_router
 from backend.routers.task.router import task_router
+from backend.routers.auth.router import auth_router
 from backend.common.config_loader import read_env, load_server_config
 from backend.common.cache_manager import cleanup_old_files
 from backend.common.logging import setup_json_logging
@@ -117,6 +118,7 @@ app.include_router(transcription_router, prefix="/api")
 app.include_router(vad_router, prefix="/api")
 app.include_router(bgm_separation_router, prefix="/api")
 app.include_router(task_router, prefix="/api")
+app.include_router(auth_router, prefix="/api")
 from backend.routers.drive.router import drive_router
 app.include_router(drive_router, prefix="/api")
 
