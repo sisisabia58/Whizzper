@@ -1,6 +1,7 @@
 import time
 import threading
 from typing import List, Optional, Dict, Any
+from contextlib import contextmanager
 from backend.modal_pool.counters import Counters
 
 class ModalEndpointPool:
@@ -64,3 +65,16 @@ class ModalEndpointPool:
             chosen = best_candidates[self._rr_index % len(best_candidates)]
             self._rr_index = (self._rr_index + 1) % len(self.endpoints)
             return chosen
+
+    @contextmanager
+    def acquire(self):
+        endpoint = self.pick()
+        if not endpoint:
+            raise RuntimeError("No healthy endpoints available or capacity limit exceeded.")
+            
+        self.counters.increment(endpoint)
+        try:
+            yield endpoint
+        finally:
+            self.counters.decrement(endpoint)
+
