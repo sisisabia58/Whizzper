@@ -261,7 +261,7 @@ class WhisperParams(BaseParams):
     model_size: str = Field(default="large-v2", description="Whisper model size")
     lang: Optional[str] = Field(default=None, description="Source language of the file to transcribe")
     is_translate: bool = Field(default=False, description="Translate speech to English end-to-end")
-    beam_size: int = Field(default=5, ge=1, description="Beam size for decoding")
+    beam_size: int = Field(default=2, ge=1, description="Beam size for decoding")
     log_prob_threshold: float = Field(
         default=-1.0,
         description="Threshold for average log probability of sampled tokens"

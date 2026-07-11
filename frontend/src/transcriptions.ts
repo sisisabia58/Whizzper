@@ -128,13 +128,13 @@ export async function startTranscription(
 
   // Preset Mapping to parameters
   let modelSize = 'medium';
-  let computeType = 'float16';
+  let computeType = 'int8_float16';
   if (preset === 'cheetah') {
     modelSize = 'small';
     computeType = 'int8';
   } else if (preset === 'whale') {
     modelSize = 'large-v3';
-    computeType = 'float16';
+    computeType = 'int8_float16';
   }
 
   const queryParams = new URLSearchParams({
@@ -219,13 +219,13 @@ export async function startBatchTranscription(
 ): Promise<string> {
   // Preset Mapping to parameters
   let modelSize = 'medium';
-  let computeType = 'float16';
+  let computeType = 'int8_float16';
   if (preset === 'cheetah') {
     modelSize = 'small';
     computeType = 'int8';
   } else if (preset === 'whale') {
     modelSize = 'large-v3';
-    computeType = 'float16';
+    computeType = 'int8_float16';
   }
 
   const payload = {
