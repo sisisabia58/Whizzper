@@ -65,6 +65,7 @@ export interface ScannedFile {
   type: 'audio' | 'video' | 'other';
   size: string;
   durationMin?: number;
+  parent_id?: string;
 }
 
 export const sampleScannedFiles: ScannedFile[] = [
@@ -156,11 +157,19 @@ export async function startTranscription(
   return data.identifier;
 }
 
-export async function scanDriveFolder(folderUrl: string): Promise<{ folder_name: string; files: ScannedFile[] }> {
+export async function scanDriveFolder(
+  params: { folderUrl?: string; connectionId?: string; folderId?: string } | string
+): Promise<{ folder_name: string; files: ScannedFile[] }> {
+  const bodyPayload = typeof params === 'string'
+    ? { folder_url: params }
+    : params.connectionId && params.folderId
+      ? { connection_id: params.connectionId, folder_id: params.folderId }
+      : { folder_url: params.folderUrl };
+
   const res = await fetch(`${API_BASE}/drive/scan`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ folder_url: folderUrl }),
+    body: JSON.stringify(bodyPayload),
   });
   if (!res.ok) {
     const err = await res.json();
@@ -177,7 +186,8 @@ export async function scanDriveFolder(folderUrl: string): Promise<{ folder_name:
       path: file.path.substring(0, file.path.lastIndexOf('/')) || "/",
       type: file.is_media ? (isVideo ? 'video' : 'audio') : 'other',
       size: sizeMB,
-      durationMin: file.duration_sec ? Math.round(file.duration_sec / 60) : undefined
+      durationMin: file.duration_sec ? Math.round(file.duration_sec / 60) : undefined,
+      parent_id: file.parent_id
     };
   });
 
@@ -197,10 +207,15 @@ export interface QueueItem {
 export async function startBatchTranscription(
   folderUrl: string,
   folderName: string,
-  selectedFiles: { file_id: string; name: string; path: string }[],
+  selectedFiles: { file_id: string; name: string; path: string; parent_id?: string }[],
   preset: 'cheetah' | 'dolphin' | 'whale',
   language: string,
-  options: { speakers: boolean; translate: boolean; restore: boolean }
+  options: { speakers: boolean; translate: boolean; restore: boolean },
+  extraParams?: {
+    accessMode?: 'link' | 'connect';
+    connectionId?: string;
+    writeback?: { enabled: boolean; on_conflict: 'version' | 'skip' };
+  }
 ): Promise<string> {
   // Preset Mapping to parameters
   let modelSize = 'medium';
@@ -218,6 +233,9 @@ export async function startBatchTranscription(
     folder_url: folderUrl,
     folder_name: folderName,
     files: selectedFiles,
+    access_mode: extraParams?.accessMode || "link",
+    connection_id: extraParams?.connectionId || null,
+    writeback: extraParams?.writeback || { enabled: false, on_conflict: "version" },
     whisper_params: {
       model_size: modelSize,
       compute_type: computeType,

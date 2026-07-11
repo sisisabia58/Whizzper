@@ -107,6 +107,11 @@ export function TranscribeModal({ open, onClose }: TranscribeModalProps) {
   const [driveFolder, setDriveFolder] = useState<string | null>(null);
   const [selectedFiles, setSelectedFiles] = useState<{ file_id: string; name: string; path: string }[]>([]);
   const [folderUrl, setFolderUrl] = useState('');
+  const [driveExtraParams, setDriveExtraParams] = useState<{
+    accessMode?: 'link' | 'connect';
+    connectionId?: string;
+    writeback?: { enabled: boolean; on_conflict: 'version' | 'skip' };
+  }>({});
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -183,7 +188,8 @@ export function TranscribeModal({ open, onClose }: TranscribeModalProps) {
             speakers: toggles.speakers,
             translate: toggles.translate,
             restore: toggles.restore
-          }
+          },
+          driveExtraParams
         );
       }
       onClose();
@@ -361,9 +367,10 @@ export function TranscribeModal({ open, onClose }: TranscribeModalProps) {
                     <DriveScanPanel
                       onSelectionChange={setDriveCount}
                       onFolderChange={setDriveFolder}
-                      onSelectionChangeWithIds={(ids, url, files) => {
+                      onSelectionChangeWithIds={(ids, url, files, extra) => {
                         setSelectedFiles(files || []);
                         setFolderUrl(url);
+                        setDriveExtraParams(extra || {});
                       }}
                     />
                   </motion.section>
