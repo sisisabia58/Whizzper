@@ -254,6 +254,10 @@ async def queue_batch_transcription(
     folder_name = payload.get("folder_name", "Batch Job")
     folder_url = payload.get("folder_url", "")
     
+    access_mode = payload.get("access_mode", "link")
+    connection_id = payload.get("connection_id")
+    writeback_enabled = payload.get("writeback", {}).get("enabled", False) if access_mode == "connect" else False
+    
     # Create Batch Parent
     add_batch_to_db(
         session=session,
@@ -261,7 +265,10 @@ async def queue_batch_transcription(
         folder_name=folder_name,
         source_url=folder_url,
         total_files=len(selected_ids),
-        task_params=payload
+        task_params=payload,
+        access_mode=access_mode,
+        connection_id=connection_id,
+        writeback_enabled=writeback_enabled
     )
     
     # Queue each child file
@@ -269,6 +276,7 @@ async def queue_batch_transcription(
         file_id = f.get("file_id")
         file_name = f.get("name", f"Drive_File_{file_id}")
         source_path = f.get("path")
+        parent_id = f.get("parent_id")
         
         add_task_to_db(
             session=session,
@@ -278,7 +286,8 @@ async def queue_batch_transcription(
             task_params=payload,
             batch_id=batch_id,
             source_file_id=file_id,
-            source_path=source_path
+            source_path=source_path,
+            source_parent_id=parent_id
         )
         
     background_tasks.add_task(
@@ -425,6 +434,47 @@ def run_batch_dispatcher(batch_id: str, selected_ids: list, task_params: dict):
             task.duration = elapsed_time
             task.progress = 1.0
             task.updated_at = datetime.utcnow()
+
+            # Write-back trigger
+            writeback_opt = task_params.get("writeback", {})
+            if task_params.get("access_mode") == "connect" and writeback_opt.get("enabled", True) and task.source_parent_id:
+                try:
+                    from backend.db.drive.dao import get_connection_from_db
+                    from modules.utils.drive_auth import decrypt_token
+                    from backend.common.zip_writer import compile_srt
+                    
+                    conn_id = task_params.get("connection_id")
+                    conn = get_connection_from_db(session, conn_id)
+                    if conn:
+                        creds_dict = {
+                            "token": decrypt_token(conn.access_token_enc),
+                            "refresh_token": decrypt_token(conn.refresh_token_enc),
+                            "token_uri": "https://oauth2.googleapis.com/token",
+                            "client_id": os.environ.get("GOOGLE_OAUTH_CLIENT_ID"),
+                            "client_secret": os.environ.get("GOOGLE_OAUTH_CLIENT_SECRET")
+                        }
+                        
+                        manager = DriveManager(credentials_dict=creds_dict)
+                        srt_text = compile_srt(segments)
+                        srt_name = f"{os.path.splitext(task.file_name)[0]}.srt"
+                        
+                        file_id = manager.upload_srt(
+                            filename=srt_name,
+                            srt_content=srt_text,
+                            parent_id=task.source_parent_id,
+                            on_conflict=writeback_opt.get("on_conflict", "version")
+                        )
+                        if file_id:
+                            task.writeback_status = "UPLOADED"
+                            task.writeback_file_id = file_id
+                        else:
+                            task.writeback_status = "SKIPPED"
+                    else:
+                        task.writeback_status = "FAILED"
+                        task.writeback_error = "OAuth connection not found in DB"
+                except Exception as wb_err:
+                    task.writeback_status = "FAILED"
+                    task.writeback_error = str(wb_err)
         except Exception as err:
             if progress_thread:
                 stop_progress_event.set()

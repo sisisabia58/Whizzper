@@ -124,3 +124,36 @@ class DriveManager:
         finally:
             if os.path.exists(raw_path):
                 os.remove(raw_path)
+
+    def upload_srt(self, filename: str, srt_content: str, parent_id: str, on_conflict: str = "version") -> str:
+        from googleapiclient.http import MediaIoBaseUpload
+        import io
+        
+        # Conflict checking
+        if on_conflict == "skip" or on_conflict == "version":
+            q = f"name = '{filename}' and '{parent_id}' in parents and trashed = false"
+            results = self.service.files().list(q=q, fields="files(id)").execute()
+            files = results.get("files", [])
+            if files:
+                if on_conflict == "skip":
+                    return "" # Skip upload
+                # For version, we uniquely suffix the filename
+                base, ext = os.path.splitext(filename)
+                filename = f"{base}_v2{ext}"
+
+        file_metadata = {
+            'name': filename,
+            'parents': [parent_id]
+        }
+        media = MediaIoBaseUpload(
+            io.BytesIO(srt_content.encode("utf-8")),
+            mimetype='text/plain',
+            resumable=True
+        )
+        file = self.service.files().create(
+            body=file_metadata,
+            media_body=media,
+            fields='id',
+            supportsAllDrives=True
+        ).execute()
+        return file.get('id', '')

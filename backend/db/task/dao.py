@@ -33,6 +33,7 @@ def add_task_to_db(
     batch_id=None,
     source_file_id=None,
     source_path=None,
+    source_parent_id=None,
 ):
     """
     Add task to the db
@@ -51,6 +52,7 @@ def add_task_to_db(
         batch_id=batch_id,
         source_file_id=source_file_id,
         source_path=source_path,
+        source_parent_id=source_parent_id,
     )
     session.add(task)
     session.commit()
