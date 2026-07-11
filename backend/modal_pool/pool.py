@@ -78,3 +78,30 @@ class ModalEndpointPool:
         finally:
             self.counters.decrement(endpoint)
 
+    def record_success(self, endpoint: str) -> None:
+        with self._lock:
+            self._consecutive_failures[endpoint] = 0
+            if endpoint in self._unhealthy_since:
+                del self._unhealthy_since[endpoint]
+
+    def record_failure(self, endpoint: str) -> None:
+        with self._lock:
+            self._consecutive_failures[endpoint] = self._consecutive_failures.get(endpoint, 0) + 1
+            if self._consecutive_failures[endpoint] >= self.unhealthy_threshold:
+                if endpoint not in self._unhealthy_since:
+                    self._unhealthy_since[endpoint] = time.time()
+
+    def healthy_endpoints(self) -> List[str]:
+        with self._lock:
+            now = time.time()
+            active_endpoints = []
+            for ep in self.endpoints:
+                if ep in self._unhealthy_since:
+                    since = self._unhealthy_since[ep]
+                    if now - since >= self.cooldown_seconds:
+                        active_endpoints.append(ep)
+                else:
+                    active_endpoints.append(ep)
+            return active_endpoints
+
+
