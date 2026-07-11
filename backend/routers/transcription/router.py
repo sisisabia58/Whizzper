@@ -26,6 +26,25 @@ from backend.db.task.models import TaskStatus, TaskType
 
 transcription_router = APIRouter(prefix="/transcription", tags=["Transcription"])
 
+from backend.modal_pool.config import get_pool_config
+from backend.modal_pool.counters import InMemoryCounters
+from backend.modal_pool.pool import ModalEndpointPool
+
+try:
+    pool_cfg = get_pool_config()
+    modal_pool = ModalEndpointPool(
+        endpoints=pool_cfg["endpoints"],
+        counters=InMemoryCounters(),
+        per_endpoint_cap=pool_cfg["per_endpoint_cap"],
+        unhealthy_threshold=pool_cfg["unhealthy_threshold"],
+        cooldown_seconds=pool_cfg["cooldown_seconds"]
+    )
+    max_retries_pool = pool_cfg["max_retries"]
+except Exception:
+    modal_pool = None
+    max_retries_pool = 2
+
+
 
 def create_progress_callback(identifier: str):
     def progress_callback(progress_value: float):
