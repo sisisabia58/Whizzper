@@ -75,37 +75,89 @@ class FasterWhisperInference(BaseTranscriptionPipeline):
         if temp == 0.0:
             temp = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0]
 
-        segments, info = self.model.transcribe(
-            audio=audio,
-            language=params.lang,
-            task="translate" if params.is_translate else "transcribe",
-            beam_size=params.beam_size,
-            log_prob_threshold=params.log_prob_threshold,
-            no_speech_threshold=params.no_speech_threshold,
-            best_of=params.best_of,
-            patience=params.patience,
-            temperature=temp,
-            condition_on_previous_text=params.condition_on_previous_text,
-            initial_prompt=params.initial_prompt,
-            compression_ratio_threshold=params.compression_ratio_threshold,
-            length_penalty=params.length_penalty,
-            repetition_penalty=params.repetition_penalty,
-            no_repeat_ngram_size=params.no_repeat_ngram_size,
-            prefix=params.prefix,
-            suppress_blank=params.suppress_blank,
-            suppress_tokens=params.suppress_tokens,
-            max_initial_timestamp=params.max_initial_timestamp,
-            word_timestamps=True,  # Set it to always True as it reduces hallucinations
-            prepend_punctuations=params.prepend_punctuations,
-            append_punctuations=params.append_punctuations,
-            max_new_tokens=params.max_new_tokens,
-            chunk_length=params.chunk_length,
-            hallucination_silence_threshold=params.hallucination_silence_threshold,
-            hotwords=params.hotwords,
-            language_detection_threshold=params.language_detection_threshold,
-            language_detection_segments=params.language_detection_segments,
-            prompt_reset_on_temperature=params.prompt_reset_on_temperature,
-        )
+        try:
+            from faster_whisper import BatchedInferencePipeline
+            has_batched = True
+        except ImportError:
+            has_batched = False
+
+        segments = None
+        info = None
+
+        if has_batched and params.batch_size > 1:
+            try:
+                from faster_whisper import BatchedInferencePipeline
+                pipeline = BatchedInferencePipeline(self.model)
+                
+                kwargs = {
+                    "language": params.lang,
+                    "task": "translate" if params.is_translate else "transcribe",
+                    "beam_size": params.beam_size,
+                    "log_prob_threshold": params.log_prob_threshold,
+                    "no_speech_threshold": params.no_speech_threshold,
+                    "best_of": params.best_of,
+                    "patience": params.patience,
+                    "temperature": temp,
+                    "compression_ratio_threshold": params.compression_ratio_threshold,
+                    "length_penalty": params.length_penalty,
+                    "repetition_penalty": params.repetition_penalty,
+                    "no_repeat_ngram_size": params.no_repeat_ngram_size,
+                    "prefix": params.prefix,
+                    "suppress_blank": params.suppress_blank,
+                    "suppress_tokens": params.suppress_tokens,
+                    "max_initial_timestamp": params.max_initial_timestamp,
+                    "word_timestamps": True,
+                    "prepend_punctuations": params.prepend_punctuations,
+                    "append_punctuations": params.append_punctuations,
+                    "batch_size": params.batch_size
+                }
+                
+                if params.initial_prompt is not None:
+                    kwargs["initial_prompt"] = params.initial_prompt
+                if params.max_new_tokens is not None:
+                    kwargs["max_new_tokens"] = params.max_new_tokens
+                if params.chunk_length is not None:
+                    kwargs["chunk_length"] = params.chunk_length
+                if params.hotwords is not None:
+                    kwargs["hotwords"] = params.hotwords
+
+                segments, info = pipeline.transcribe(audio=audio, **kwargs)
+            except Exception as e:
+                print(f"[WhisperInference] Batched transcription failed: {e}. Falling back to sequential transcription.")
+                segments = None
+
+        if segments is None:
+            segments, info = self.model.transcribe(
+                audio=audio,
+                language=params.lang,
+                task="translate" if params.is_translate else "transcribe",
+                beam_size=params.beam_size,
+                log_prob_threshold=params.log_prob_threshold,
+                no_speech_threshold=params.no_speech_threshold,
+                best_of=params.best_of,
+                patience=params.patience,
+                temperature=temp,
+                condition_on_previous_text=params.condition_on_previous_text,
+                initial_prompt=params.initial_prompt,
+                compression_ratio_threshold=params.compression_ratio_threshold,
+                length_penalty=params.length_penalty,
+                repetition_penalty=params.repetition_penalty,
+                no_repeat_ngram_size=params.no_repeat_ngram_size,
+                prefix=params.prefix,
+                suppress_blank=params.suppress_blank,
+                suppress_tokens=params.suppress_tokens,
+                max_initial_timestamp=params.max_initial_timestamp,
+                word_timestamps=True,
+                prepend_punctuations=params.prepend_punctuations,
+                append_punctuations=params.append_punctuations,
+                max_new_tokens=params.max_new_tokens,
+                chunk_length=params.chunk_length,
+                hallucination_silence_threshold=params.hallucination_silence_threshold,
+                hotwords=params.hotwords,
+                language_detection_threshold=params.language_detection_threshold,
+                language_detection_segments=params.language_detection_segments,
+                prompt_reset_on_temperature=params.prompt_reset_on_temperature,
+            )
         progress(0, desc="Loading audio..")
 
         segments_result = []
