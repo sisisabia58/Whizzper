@@ -8,16 +8,28 @@ import { Transcript, fetchAllTasks, groupTranscripts } from './transcriptions';
 import { JobRow } from './JobRow';
 
 export function Internal() {
+  const PAGE_LIMIT = 15;
   const [transcriptsList, setTranscriptsList] = useState<Transcript[]>([]);
+  const [totalTasks, setTotalTasks] = useState(0);
   const [filter, setFilter] = useState<'all' | 'completed' | 'processing' | 'queued' | 'failed'>('all');
   const [query, setQuery] = useState('');
   const [transcribeOpen, setTranscribeOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  const loadData = async () => {
+  const loadData = async (append = false) => {
     try {
-      const data = await fetchAllTasks();
-      setTranscriptsList(data);
+      const currentOffset = append ? transcriptsList.length : 0;
+      const { tasks, total } = await fetchAllTasks(PAGE_LIMIT, currentOffset);
+      if (append) {
+        setTranscriptsList((prev) => {
+          const existingIds = new Set(prev.map((t) => t.id));
+          const newTasks = tasks.filter((t) => !existingIds.has(t.id));
+          return [...prev, ...newTasks];
+        });
+      } else {
+        setTranscriptsList(tasks);
+      }
+      setTotalTasks(total);
     } catch (e) {
       console.error("Error loading task data:", e);
     } finally {
@@ -26,11 +38,56 @@ export function Internal() {
   };
 
   useEffect(() => {
-    loadData();
-    // Poll active tasks every 4 seconds
-    const interval = setInterval(loadData, 4000);
-    return () => clearInterval(interval);
+    loadData(false);
   }, []);
+
+  useEffect(() => {
+    const eventSource = new EventSource('/api/task/stream');
+    
+    eventSource.onmessage = (event) => {
+      try {
+        const update = JSON.parse(event.data);
+        if (update.type === 'task_updated') {
+          setTranscriptsList((prev) => {
+            const exists = prev.some((t) => t.id === update.uuid);
+            if (!exists) {
+              fetchAllTasks(PAGE_LIMIT, 0).then(({ tasks, total }) => {
+                setTranscriptsList(tasks);
+                setTotalTasks(total);
+              }).catch((e) => console.error("Error reloading tasks on SSE update:", e));
+              return prev;
+            }
+            return prev.map((t) => {
+              if (t.id === update.uuid) {
+                let status = t.status;
+                if (update.status === 'completed') status = 'completed';
+                else if (update.status === 'failed') status = 'failed';
+                else if (update.status === 'in_progress') status = 'processing';
+                
+                return {
+                  ...t,
+                  status,
+                  progress: update.progress ? Math.round(update.progress * 100) : 0
+                };
+              }
+              return t;
+            });
+          });
+        }
+      } catch (err) {
+        console.error("Failed to parse SSE event data:", err);
+      }
+    };
+
+    return () => {
+      eventSource.close();
+    };
+  }, []);
+
+  const handleDeleteTask = (id: string) => {
+    setTranscriptsList((prev) => prev.filter((t) => t.id !== id));
+    setTotalTasks((prev) => Math.max(0, prev - 1));
+  };
 
   const visible = transcriptsList.filter((t) => {
     const matchesFilter = filter === 'all' || t.status === filter;
@@ -164,7 +221,7 @@ export function Internal() {
                 if (item.type === 'batch') {
                   return <JobRow key={item.id} job={item.item} index={index} />;
                 } else {
-                  return <TranscriptRow key={item.id} transcript={item.item} index={index} />;
+                  return <TranscriptRow key={item.id} transcript={item.item} index={index} onDelete={handleDeleteTask} />;
                 }
               })
             ) : (
@@ -176,6 +233,15 @@ export function Internal() {
                 </p>
               </div>
             )}
+
+            {transcriptsList.length < totalTasks && (
+              <button
+                onClick={() => loadData(true)}
+                className="mt-6 px-5 py-2.5 border border-zinc-200 bg-paper text-zinc-600 rounded-full text-xs font-semibold uppercase tracking-wider hover:bg-paper-off hover:text-ink transition-colors mx-auto flex items-center justify-center shadow-sm"
+              >
+                Load More
+              </button>
+            )}
           </div>
         </main>
       </div>
@@ -184,7 +250,7 @@ export function Internal() {
         open={transcribeOpen}
         onClose={() => {
           setTranscribeOpen(false);
-          loadData();
+          loadData(false);
         }}
       />
     </div>

@@ -24,7 +24,73 @@ from modules.utils.paths import BACKEND_CACHE_DIR
 task_router = APIRouter(prefix="/task", tags=["Tasks"])
 
 
-from fastapi import Response as FastAPIResponse
+import asyncio
+import json
+from typing import Set, Optional
+from fastapi import Request, Response as FastAPIResponse
+from fastapi.responses import StreamingResponse
+from sqlalchemy import event
+
+class TaskEventBroker:
+    def __init__(self):
+        self.listeners: Set[asyncio.Queue] = set()
+        self.loop: Optional[asyncio.AbstractEventLoop] = None
+
+    def subscribe(self) -> asyncio.Queue:
+        q = asyncio.Queue()
+        self.listeners.add(q)
+        return q
+
+    def unsubscribe(self, q: asyncio.Queue):
+        self.listeners.discard(q)
+
+    def publish_threadsafe(self, event: dict):
+        if self.loop and self.loop.is_running():
+            self.loop.call_soon_threadsafe(self._publish_local, event)
+
+    def _publish_local(self, event_data: dict):
+        for q in list(self.listeners):
+            q.put_nowait(event_data)
+
+task_event_broker = TaskEventBroker()
+
+@event.listens_for(Task, "after_insert")
+def receive_after_insert(mapper, connection, target):
+    event_data = {
+        "type": "task_updated",
+        "uuid": target.uuid,
+        "status": str(target.status) if target.status else None,
+        "progress": target.progress
+    }
+    task_event_broker.publish_threadsafe(event_data)
+
+@event.listens_for(Task, "after_update")
+def receive_after_update(mapper, connection, target):
+    event_data = {
+        "type": "task_updated",
+        "uuid": target.uuid,
+        "status": str(target.status) if target.status else None,
+        "progress": target.progress
+    }
+    task_event_broker.publish_threadsafe(event_data)
+
+
+@task_router.get("/stream")
+async def stream_tasks(request: Request):
+    q = task_event_broker.subscribe()
+    async def event_generator():
+        try:
+            while True:
+                if await request.is_disconnected():
+                    break
+                event_data = await q.get()
+                yield f"data: {json.dumps(event_data)}\n\n"
+        except asyncio.CancelledError:
+            pass
+        finally:
+            task_event_broker.unsubscribe(q)
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
 
 @task_router.get(
     "/all",
@@ -35,6 +101,8 @@ from fastapi import Response as FastAPIResponse
 )
 async def get_all_tasks_status(
     response: FastAPIResponse,
+    limit: int = 50,
+    offset: int = 0,
     session: Session = Depends(get_db_session),
 ) -> TasksResult:
     """
@@ -43,7 +111,7 @@ async def get_all_tasks_status(
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "0"
-    return get_all_tasks_status_from_db(session=session)
+    return get_all_tasks_status_from_db(session=session, limit=limit, offset=offset)
 
 
 @task_router.get(
@@ -114,21 +182,30 @@ async def get_file_task(
         raise HTTPException(status_code=404, detail="Identifier not found")
 
 
-# Delete method, commented by default because this endpoint is likely to require special permissions
-# @task_router.delete(
-#     "/{identifier}",
-#     response_model=Response,
-#     status_code=status.HTTP_200_OK,
-#     summary="Delete Task by Identifier",
-#     description="Delete a task from the system using its identifier.",
-# )
+@task_router.delete(
+    "/{identifier}",
+    response_model=Response,
+    status_code=status.HTTP_200_OK,
+    summary="Delete Task by Identifier",
+    description="Delete a task from the system using its identifier.",
+)
 async def delete_task(
     identifier: str,
     session: Session = Depends(get_db_session),
 ) -> Response:
     """
-    Delete a task by its identifier.
+    Delete a task by its identifier and purge any associated cached files.
     """
+    import glob
+    # Purge cached files starting with the task UUID
+    cached_files = glob.glob(os.path.join(BACKEND_CACHE_DIR, f"{identifier}*"))
+    for file_path in cached_files:
+        try:
+            if os.path.isfile(file_path):
+                os.remove(file_path)
+        except Exception as e:
+            print(f"Error deleting cached file {file_path}: {e}")
+
     if delete_task_from_db(identifier, session):
         return Response(identifier=identifier, message="Task deleted")
     else:

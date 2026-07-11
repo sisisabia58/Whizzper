@@ -91,6 +91,9 @@ async def lifespan(app: FastAPI):
 
     cache_thread = clean_cache_thread(server_config["cache"]["ttl"], server_config["cache"]["frequency"])
     cache_thread.start()
+    import asyncio
+    from backend.routers.task.router import task_event_broker
+    task_event_broker.loop = asyncio.get_running_loop()
 
     yield
 

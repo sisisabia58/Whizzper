@@ -5,13 +5,13 @@ import {
   FileVideo,
   Download,
   FileText,
-  MoreHorizontal,
+  Trash2,
   Loader2,
   Check,
   AlertCircle,
   Clock } from
 'lucide-react';
-import { Transcript, statusLabel, fetchTaskById } from './transcriptions';
+import { Transcript, statusLabel, fetchTaskById, deleteTask } from './transcriptions';
 
 const statusStyles: Record<
   Transcript['status'],
@@ -43,6 +43,7 @@ const statusStyles: Record<
 interface TranscriptRowProps {
   transcript: Transcript;
   index: number;
+  onDelete?: (id: string) => void;
 }
 
 export function segmentsToSRT(segments: any[]): string {
@@ -76,7 +77,22 @@ export function triggerDownload(content: string, filename: string, mimeType: str
   URL.revokeObjectURL(url);
 }
 
-export function TranscriptRow({ transcript, index }: TranscriptRowProps) {
+export function TranscriptRow({ transcript, index, onDelete }: TranscriptRowProps) {
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDelete = async () => {
+    if (!confirm(`Are you sure you want to permanently delete "${name}"? This will delete the database record and purge all associated audio/video files from the server.`)) return;
+    setIsDeleting(true);
+    try {
+      await deleteTask(id);
+      if (onDelete) onDelete(id);
+    } catch (err) {
+      alert("Failed to delete task: " + String(err));
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const {
     id,
     name,
@@ -233,9 +249,17 @@ export function TranscriptRow({ transcript, index }: TranscriptRowProps) {
         null}
 
         <button
-          className="w-9 h-9 rounded-full flex items-center justify-center text-zinc-400 hover:bg-paper-off hover:text-ink transition-colors"
-          aria-label="More options">
-          <MoreHorizontal className="w-4 h-4" />
+          onClick={handleDelete}
+          disabled={isDeleting}
+          className="w-9 h-9 rounded-full flex items-center justify-center text-zinc-400 hover:bg-red-50 hover:text-red-600 transition-colors disabled:opacity-50"
+          title="Delete task and cache"
+          aria-label="Delete Task"
+        >
+          {isDeleting ? (
+            <Loader2 className="w-4.5 h-4.5 animate-spin" />
+          ) : (
+            <Trash2 className="w-4.5 h-4.5" />
+          )}
         </button>
       </div>
     </motion.div>);

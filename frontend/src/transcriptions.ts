@@ -76,14 +76,14 @@ export const sampleScannedFiles: ScannedFile[] = [
 
 export const API_BASE = '/api';
 
-export async function fetchAllTasks(): Promise<Transcript[]> {
-  const res = await fetch(`${API_BASE}/task/all`, {
+export async function fetchAllTasks(limit: number = 50, offset: number = 0): Promise<{ tasks: Transcript[]; total: number }> {
+  const res = await fetch(`${API_BASE}/task/all?limit=${limit}&offset=${offset}`, {
     cache: 'no-store'
   });
   if (!res.ok) throw new Error("Failed to fetch tasks");
   const data = await res.json();
   
-  return data.tasks.map((task: any) => {
+  const mappedTasks = data.tasks.map((task: any) => {
     const fileName = task.file_name || 'Unnamed Audio';
     const isVideo = fileName.endsWith('.mp4') || fileName.endsWith('.mkv') || fileName.endsWith('.mov');
     
@@ -115,6 +115,15 @@ export async function fetchAllTasks(): Promise<Transcript[]> {
       batchFolderName: task.task_params?.folder_name || undefined
     };
   });
+
+  return { tasks: mappedTasks, total: data.total || mappedTasks.length };
+}
+
+export async function deleteTask(id: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/task/${id}`, {
+    method: 'DELETE'
+  });
+  if (!res.ok) throw new Error("Failed to delete task");
 }
 
 export async function startTranscription(

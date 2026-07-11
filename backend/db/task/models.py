@@ -237,4 +237,5 @@ class TaskSummary(BaseModel):
 
 class TasksResult(BaseModel):
     tasks: List[TaskSummary]
+    total: int
 

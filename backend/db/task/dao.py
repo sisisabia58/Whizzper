@@ -100,11 +100,12 @@ def get_task_status_from_db(
 
 
 @handle_database_errors
-def get_all_tasks_status_from_db(session: Session):
-    """Get all tasks from db"""
+def get_all_tasks_status_from_db(session: Session, limit: int = 50, offset: int = 0):
+    """Get all tasks from db with pagination"""
     from sqlalchemy.orm import defer
-    tasks = session.query(Task).options(defer(Task.result)).order_by(Task.created_at.desc()).all()
-    return TasksResult(tasks=tasks)
+    tasks = session.query(Task).options(defer(Task.result)).order_by(Task.created_at.desc()).limit(limit).offset(offset).all()
+    total = session.query(Task).count()
+    return TasksResult(tasks=tasks, total=total)
 
 
 @handle_database_errors
