@@ -199,7 +199,6 @@ def run_transcription_gpu(
 
 @app.function(
     image=whizzper_image,
-    gpu="T4",
     timeout=600,
     max_containers=10,
     volumes={CACHE_DIR: models_volume},
