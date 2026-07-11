@@ -81,21 +81,17 @@ class ModalWhisperInference(BaseTranscriptionPipeline):
         file_name = "audio.mp3"
         tmp_mp3 = None
         if isinstance(audio, str):
-            file_ext = os.path.splitext(audio)[1].lower()
-            if file_ext in [".mp4", ".m4a", ".mkv", ".avi", ".mov", ".flv", ".webm", ".wav", ".ogg", ".flac"]:
-                tmp_file = tempfile.NamedTemporaryFile(suffix=".mp3", delete=False)
-                tmp_mp3 = tmp_file.name
-                tmp_file.close()
-                try:
-                    cmd = ["ffmpeg", "-y", "-i", audio, "-vn", "-c:a", "libmp3lame", "-b:a", "64k", tmp_mp3]
-                    subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
-                    read_path = tmp_mp3
-                    file_name = "audio.mp3"
-                except Exception as ex:
-                    logger.warning(f"ffmpeg compression failed, falling back to raw file: {ex}")
-                    read_path = audio
-                    file_name = os.path.basename(audio)
-            else:
+            # Compress all audio/video file formats to 64k mono MP3 to guarantee minimal egress
+            tmp_file = tempfile.NamedTemporaryFile(suffix=".mp3", delete=False)
+            tmp_mp3 = tmp_file.name
+            tmp_file.close()
+            try:
+                cmd = ["ffmpeg", "-y", "-i", audio, "-vn", "-c:a", "libmp3lame", "-b:a", "64k", tmp_mp3]
+                subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+                read_path = tmp_mp3
+                file_name = "audio.mp3"
+            except Exception as ex:
+                logger.warning(f"ffmpeg compression failed, falling back to raw file: {ex}")
                 read_path = audio
                 file_name = os.path.basename(audio)
 
@@ -108,8 +104,6 @@ class ModalWhisperInference(BaseTranscriptionPipeline):
                 except Exception:
                     pass
         elif isinstance(audio, np.ndarray):
-            import soundfile as sf
-            import subprocess
             with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp_wav:
                 sf.write(tmp_wav.name, audio, 16000)
                 wav_path = tmp_wav.name
