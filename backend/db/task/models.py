@@ -107,8 +107,8 @@ class Task(SQLModel, table=True):
         sa_column=Column(SQLAlchemyEnum(TaskStatus)),
         description="Current status of the task",
     )
-    result: Optional[dict] = Field(
-        default_factory=dict,
+    result: Optional[Any] = Field(
+        default=None,
         sa_column=Column(JSON),
         description="JSON data representing the result of the task"
     )
