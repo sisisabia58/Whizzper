@@ -1,7 +1,7 @@
 # Ported from https://github.com/pavelzbornik/whisperX-FastAPI/blob/main/app/models.py
 
 from enum import Enum
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import Optional, List
 from uuid import uuid4
 from datetime import datetime
@@ -209,6 +209,8 @@ class Task(SQLModel, table=True):
 
 
 class TaskSummary(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: Optional[int] = None
     uuid: str
     status: Optional[TaskStatus] = None
