@@ -17,8 +17,8 @@ tmp_file = tempfile.NamedTemporaryFile(suffix=".mp3", delete=False)
 tmp_mp3 = tmp_file.name
 tmp_file.close()
 
-print(f"Compressing audio track to 64k MP3 with ffmpeg -> {tmp_mp3}")
-cmd = ["ffmpeg", "-y", "-i", VIDEO_PATH, "-vn", "-c:a", "libmp3lame", "-b:a", "64k", tmp_mp3]
+print(f"Compressing audio track to 32k mono MP3 with ffmpeg -> {tmp_mp3}")
+cmd = ["ffmpeg", "-y", "-i", VIDEO_PATH, "-vn", "-c:a", "libmp3lame", "-ac", "1", "-b:a", "32k", tmp_mp3]
 subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
 
 with open(tmp_mp3, "rb") as f:

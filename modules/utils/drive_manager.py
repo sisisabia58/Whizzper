@@ -109,11 +109,11 @@ class DriveManager:
                 while done is False:
                     status, done = downloader.next_chunk()
             
-            # Extract to 64k mono MP3, then read it into the target WAV layout
+            # Extract to 32k mono MP3, then read it into the target WAV layout
             with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as mp3_file:
                 mp3_path = mp3_file.name
                 
-            cmd = ["ffmpeg", "-y", "-i", raw_path, "-vn", "-c:a", "libmp3lame", "-b:a", "64k", "-ac", "1", mp3_path]
+            cmd = ["ffmpeg", "-y", "-i", raw_path, "-vn", "-c:a", "libmp3lame", "-b:a", "32k", "-ac", "1", mp3_path]
             subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
             
             # Decode to final WAV for the pipeline

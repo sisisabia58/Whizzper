@@ -42,4 +42,4 @@ def test_numpy_array_ffmpeg_compression(mock_run):
         called_args = mock_run.call_args[0][0]
         assert "ffmpeg" in called_args
         assert "libmp3lame" in called_args
-        assert "64k" in called_args
+        assert "32k" in called_args

@@ -81,12 +81,12 @@ class ModalWhisperInference(BaseTranscriptionPipeline):
         file_name = "audio.mp3"
         tmp_mp3 = None
         if isinstance(audio, str):
-            # Compress all audio/video file formats to 64k mono MP3 to guarantee minimal egress
+            # Compress all audio/video file formats to 32k mono MP3 to guarantee minimal egress
             tmp_file = tempfile.NamedTemporaryFile(suffix=".mp3", delete=False)
             tmp_mp3 = tmp_file.name
             tmp_file.close()
             try:
-                cmd = ["ffmpeg", "-y", "-i", audio, "-vn", "-c:a", "libmp3lame", "-b:a", "64k", tmp_mp3]
+                cmd = ["ffmpeg", "-y", "-i", audio, "-vn", "-c:a", "libmp3lame", "-ac", "1", "-b:a", "32k", tmp_mp3]
                 subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
                 read_path = tmp_mp3
                 file_name = "audio.mp3"
@@ -112,7 +112,7 @@ class ModalWhisperInference(BaseTranscriptionPipeline):
                 mp3_path = tmp_mp3.name
             
             try:
-                cmd = ["ffmpeg", "-y", "-i", wav_path, "-vn", "-c:a", "libmp3lame", "-b:a", "64k", mp3_path]
+                cmd = ["ffmpeg", "-y", "-i", wav_path, "-vn", "-c:a", "libmp3lame", "-ac", "1", "-b:a", "32k", mp3_path]
                 subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
                 with open(mp3_path, "rb") as f:
                     audio_bytes = f.read()
