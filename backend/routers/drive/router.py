@@ -32,7 +32,6 @@ async def delete_connection(connection_id: str, session: Session = Depends(get_d
 async def get_folders(
     connection_id: str,
     parent_id: Optional[str] = None,
-    page_token: Optional[str] = None,
     session: Session = Depends(get_db_session)
 ):
     from backend.db.drive.dao import get_connection_from_db
@@ -51,7 +50,7 @@ async def get_folders(
     }
     
     manager = DriveManager(credentials_dict=creds_dict)
-    results = manager.list_folders(parent_id, page_token)
+    results = manager.list_folders(parent_id)
     return results
 
 @drive_router.post("/scan")

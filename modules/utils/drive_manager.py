@@ -26,21 +26,76 @@ class DriveManager:
         if not self.service:
             raise ValueError("Google Drive service is not initialized")
             
+        # 1. Fetch folders with auto-pagination
         q = "mimeType = 'application/vnd.google-apps.folder' and trashed = false"
-        if parent_id:
+        if parent_id and parent_id != 'root':
             q += f" and '{parent_id}' in parents"
         else:
             q += " and 'root' in parents"
             
-        results = self.service.files().list(
-            q=q,
-            pageSize=50,
-            fields="nextPageToken, files(id, name, modifiedTime, owners)",
-            pageToken=page_token,
-            includeItemsFromAllDrives=True,
-            supportsAllDrives=True
-        ).execute()
-        return results
+        folders_list = []
+        current_page_token = None
+        while True:
+            results = self.service.files().list(
+                q=q,
+                pageSize=1000,
+                fields="nextPageToken, files(id, name, modifiedTime)",
+                pageToken=current_page_token,
+                includeItemsFromAllDrives=True,
+                supportsAllDrives=True
+            ).execute()
+            folders_list.extend(results.get('files', []))
+            current_page_token = results.get('nextPageToken')
+            if not current_page_token:
+                break
+                
+        # 2. Fetch Shared Drives if at the root level
+        if not parent_id or parent_id == 'root':
+            try:
+                drives_results = self.service.drives().list(pageSize=100).execute()
+                for d in drives_results.get('drives', []):
+                    folders_list.append({
+                        "id": d.get("id"),
+                        "name": f"📁 Shared Drive: {d.get('name')}"
+                    })
+            except Exception as e:
+                # Fallback if scope does not support drives.list API
+                pass
+
+        # 3. Fetch media files inside the parent folder
+        files_list = []
+        if parent_id and parent_id != 'root':
+            q_files = f"'{parent_id}' in parents and trashed = false and mimeType != 'application/vnd.google-apps.folder'"
+            current_page_token = None
+            while True:
+                results = self.service.files().list(
+                    q=q_files,
+                    pageSize=1000,
+                    fields="nextPageToken, files(id, name, mimeType, size, videoMediaMetadata)",
+                    pageToken=current_page_token,
+                    includeItemsFromAllDrives=True,
+                    supportsAllDrives=True
+                ).execute()
+                for file in results.get('files', []):
+                    name = file.get('name', '')
+                    ext = os.path.splitext(name)[1].lower()
+                    if ext in MEDIA_EXTENSIONS:
+                        size_bytes = int(file.get('size', 0)) if file.get('size') else 0
+                        size_mb = f"{size_bytes / (1024 * 1024):.1f} MB" if size_bytes > 0 else "0 MB"
+                        metadata = file.get('videoMediaMetadata', {})
+                        duration_min = round(float(metadata.get('durationMillis', 0)) / 60000.0, 1) if metadata else 0
+                        files_list.append({
+                            "id": file.get('id'),
+                            "name": name,
+                            "mime_type": file.get('mimeType'),
+                            "size": size_mb,
+                            "durationMin": duration_min if duration_min > 0 else None
+                        })
+                current_page_token = results.get('nextPageToken')
+                if not current_page_token:
+                    break
+                    
+        return {"folders": folders_list, "files": files_list}
 
     def scan_folder(self, folder_id: str, current_path: str = "") -> List[Dict[str, Any]]:
         if not self.service:

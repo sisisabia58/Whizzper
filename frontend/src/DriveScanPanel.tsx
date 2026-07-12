@@ -81,6 +81,8 @@ export function DriveScanPanel({
   ]);
   const [currentFolderId, setCurrentFolderId] = useState<string>('root');
   const [subfolders, setSubfolders] = useState<DriveFolderItem[]>([]);
+  const [explorerFiles, setExplorerFiles] = useState<any[]>([]);
+  const [selectedExplorerFileIds, setSelectedExplorerFileIds] = useState<Set<string>>(new Set());
   const [isFoldersLoading, setIsFoldersLoading] = useState(false);
   const [folderSearchQuery, setFolderSearchQuery] = useState('');
 
@@ -89,7 +91,9 @@ export function DriveScanPanel({
   const [writebackConflict, setWritebackConflict] = useState<'version' | 'skip'>('version');
 
   const processable = scannedFiles.filter((f) => f.type !== 'other');
-  const selectedCount = processable.filter((f) => !excluded.has(f.id)).length;
+  const selectedCount = state === 'done'
+    ? processable.filter((f) => !excluded.has(f.id)).length
+    : selectedExplorerFileIds.size;
 
   // Poll/refresh connections
   const fetchConnections = async () => {
@@ -135,10 +139,14 @@ export function DriveScanPanel({
       const res = await fetch(`/api/drive/folders?connection_id=${selectedConnectionId}${parentQuery}`);
       if (res.ok) {
         const data = await res.json();
+        const folders = data.folders || [];
         const files = data.files || [];
-        setSubfolders(files.map((f: any) => ({ id: f.id, name: f.name })));
+        setSubfolders(folders);
+        setExplorerFiles(files);
+        setSelectedExplorerFileIds(new Set()); // Reset selections on folder change
       } else {
         setSubfolders([]);
+        setExplorerFiles([]);
       }
     } catch (e) {
       console.error('Failed to load folders:', e);
@@ -153,16 +161,31 @@ export function DriveScanPanel({
 
   // Bubble state changes up to TranscribeModal
   useEffect(() => {
-    onSelectionChange(state === 'done' ? selectedCount : 0);
-    if (state === 'done' && onSelectionChangeWithIds) {
-      const activeFiles = processable
-        .filter((f) => !excluded.has(f.id))
-        .map((f) => ({
-          file_id: f.id,
-          name: f.name,
-          path: (f.path === '/' ? '' : f.path + '/') + f.name,
-          parent_id: f.parent_id
-        }));
+    onSelectionChange(selectedCount);
+    if (onSelectionChangeWithIds) {
+      let activeFiles: { file_id: string; name: string; path: string; parent_id?: string }[] = [];
+      
+      if (state === 'done') {
+        activeFiles = processable
+          .filter((f) => !excluded.has(f.id))
+          .map((f) => ({
+            file_id: f.id,
+            name: f.name,
+            path: (f.path === '/' ? '' : f.path + '/') + f.name,
+            parent_id: f.parent_id
+          }));
+      } else if (selectedExplorerFileIds.size > 0) {
+        const currentPathStr = folderPath.slice(1).map(p => p.name).join('/');
+        activeFiles = explorerFiles
+          .filter((f) => selectedExplorerFileIds.has(f.id))
+          .map((f) => ({
+            file_id: f.id,
+            name: f.name,
+            path: (currentPathStr ? currentPathStr + '/' : '') + f.name,
+            parent_id: currentFolderId
+          }));
+      }
+
       const activeIds = activeFiles.map((f) => f.file_id);
       
       onSelectionChangeWithIds(activeIds, link, activeFiles, {
@@ -184,6 +207,10 @@ export function DriveScanPanel({
     selectedConnectionId,
     writebackEnabled,
     writebackConflict,
+    selectedExplorerFileIds,
+    explorerFiles,
+    folderPath,
+    currentFolderId,
     onSelectionChange,
     onSelectionChangeWithIds
   ]);
@@ -265,6 +292,13 @@ export function DriveScanPanel({
 
   const toggleFile = (id: string) =>
     setExcluded((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+
+  const toggleExplorerFile = (id: string) =>
+    setSelectedExplorerFileIds((prev) => {
       const next = new Set(prev);
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
@@ -383,16 +417,34 @@ export function DriveScanPanel({
                 ) : (
                   /* Explorer Panel */
                   <div className="space-y-4">
-                    {/* Active Account Header */}
+                    {/* Active Account Switcher Dropdown */}
                     <div className="flex items-center justify-between p-3 rounded-xl border border-zinc-200 bg-zinc-50/50">
-                      <div className="flex items-center gap-2 min-w-0">
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
                         <FolderOpen className="w-4 h-4 text-emerald-600 shrink-0" />
-                        <span className="text-xs font-bold text-ink truncate">
-                          {connections.find((c) => c.connection_id === selectedConnectionId)
-                            ?.account_email || 'Linked Account'}
-                        </span>
+                        {connections.length > 1 ? (
+                          <select
+                            value={selectedConnectionId}
+                            onChange={(e) => {
+                              setSelectedConnectionId(e.target.value);
+                              setFolderPath([{ id: 'root', name: 'My Drive' }]);
+                              setCurrentFolderId('root');
+                            }}
+                            className="bg-transparent border-none text-xs font-bold text-ink focus:outline-none focus:ring-0 max-w-full truncate pr-6 py-0 cursor-pointer"
+                          >
+                            {connections.map((c) => (
+                              <option key={c.connection_id} value={c.connection_id}>
+                                {c.account_email}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <span className="text-xs font-bold text-ink truncate">
+                            {connections.find((c) => c.connection_id === selectedConnectionId)
+                              ?.account_email || 'Linked Account'}
+                          </span>
+                        )}
                       </div>
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1.5 shrink-0">
                         <button
                           onClick={startOAuthFlow}
                           title="Add another account"
@@ -460,35 +512,82 @@ export function DriveScanPanel({
                             <Loader2 className="w-4 h-4 animate-spin text-ink" />
                             Loading folders…
                           </div>
-                        ) : filteredFolders.length === 0 ? (
+                        ) : filteredFolders.length === 0 && explorerFiles.length === 0 ? (
                           <div className="h-full flex flex-col items-center justify-center p-6 text-center text-zinc-400">
                             <Folder className="w-8 h-8 text-zinc-200 mb-1.5" />
-                            <p className="text-xs">No subfolders found</p>
+                            <p className="text-xs">No folders or media files found</p>
                           </div>
                         ) : (
-                          filteredFolders.map((f) => (
-                            <div
-                              key={f.id}
-                              className="flex items-center justify-between gap-3 px-4 py-2 hover:bg-zinc-50 transition-colors"
-                            >
-                              <button
-                                onClick={() => {
-                                  setFolderPath([...folderPath, { id: f.id, name: f.name }]);
-                                  setCurrentFolderId(f.id);
-                                }}
-                                className="flex items-center gap-2.5 text-xs text-ink font-semibold text-left min-w-0 flex-1 py-1"
+                          <>
+                            {filteredFolders.map((f) => (
+                              <div
+                                key={f.id}
+                                className="flex items-center justify-between gap-3 px-4 py-2 hover:bg-zinc-50 transition-colors"
                               >
-                                <Folder className="w-4 h-4 text-zinc-400 shrink-0" />
-                                <span className="truncate">{f.name}</span>
-                              </button>
-                              <button
-                                onClick={() => startScan(f.id)}
-                                className="px-2.5 py-1 rounded bg-zinc-100 text-[10px] font-bold text-ink hover:bg-ink hover:text-white transition-colors uppercase tracking-wider"
-                              >
-                                Scan
-                              </button>
-                            </div>
-                          ))
+                                <button
+                                  onClick={() => {
+                                    setFolderPath([...folderPath, { id: f.id, name: f.name }]);
+                                    setCurrentFolderId(f.id);
+                                  }}
+                                  className="flex items-center gap-2.5 text-xs text-ink font-semibold text-left min-w-0 flex-1 py-1"
+                                >
+                                  <Folder className="w-4 h-4 text-zinc-400 shrink-0" />
+                                  <span className="truncate">{f.name}</span>
+                                </button>
+                                <button
+                                  onClick={() => startScan(f.id)}
+                                  className="px-2.5 py-1 rounded bg-zinc-100 text-[10px] font-bold text-ink hover:bg-ink hover:text-white transition-colors uppercase tracking-wider"
+                                >
+                                  Scan
+                                </button>
+                              </div>
+                            ))}
+
+                            {explorerFiles.map((file) => {
+                              const isVideo = file.name.endsWith('.mp4') || file.name.endsWith('.mkv') || file.name.endsWith('.mov');
+                              const FileIconComp = isVideo ? FileVideo : FileAudio;
+                              const checked = selectedExplorerFileIds.has(file.id);
+                              return (
+                                <div
+                                  key={file.id}
+                                  className="flex items-center gap-3 px-4 py-2.5 hover:bg-zinc-50 transition-colors"
+                                >
+                                  <button
+                                    onClick={() => toggleExplorerFile(file.id)}
+                                    role="checkbox"
+                                    aria-checked={checked}
+                                    aria-label={`Select ${file.name}`}
+                                    className={`w-4.5 h-4.5 shrink-0 rounded border flex items-center justify-center transition-colors ${
+                                      checked ? 'bg-ink border-ink text-paper' : 'bg-paper border-zinc-300'
+                                    }`}
+                                  >
+                                    {checked && (
+                                      <svg
+                                        viewBox="0 0 12 12"
+                                        className="w-2.5 h-2.5"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth={2.5}
+                                      >
+                                        <path
+                                          d="M2.5 6.5L5 9l4.5-5"
+                                          strokeLinecap="round"
+                                          strokeLinejoin="round"
+                                        />
+                                      </svg>
+                                    )}
+                                  </button>
+                                  <FileIconComp className="w-4 h-4 text-zinc-400 shrink-0" />
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-xs font-semibold text-ink truncate">{file.name}</p>
+                                    <p className="text-[10px] text-zinc-400 truncate">
+                                      {file.size} {file.durationMin ? `· ${file.durationMin} min` : ''}
+                                    </p>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </>
                         )}
                       </div>
                     </div>
