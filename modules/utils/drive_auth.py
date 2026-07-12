@@ -31,7 +31,7 @@ def build_consent_url(state: str) -> str:
             "token_uri": "https://oauth2.googleapis.com/token",
         }
     }
-    scopes = os.environ.get("DRIVE_OAUTH_SCOPES", "https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.file").split()
+    scopes = os.environ.get("DRIVE_OAUTH_SCOPES", "https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email").split()
     redirect_uri = os.environ.get("GOOGLE_OAUTH_REDIRECT_URI", "http://localhost:8080/api/auth/google/callback")
     
     flow = Flow.from_client_config(client_config, scopes=scopes)
@@ -54,7 +54,7 @@ def exchange_code(code: str) -> dict:
             "token_uri": "https://oauth2.googleapis.com/token",
         }
     }
-    scopes = os.environ.get("DRIVE_OAUTH_SCOPES", "https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.file").split()
+    scopes = os.environ.get("DRIVE_OAUTH_SCOPES", "https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email").split()
     redirect_uri = os.environ.get("GOOGLE_OAUTH_REDIRECT_URI", "http://localhost:8080/api/auth/google/callback")
     
     flow = Flow.from_client_config(client_config, scopes=scopes)

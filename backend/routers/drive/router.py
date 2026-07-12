@@ -10,16 +10,44 @@ drive_router = APIRouter(prefix="/drive", tags=["Google Drive"])
 @drive_router.get("/connections")
 async def get_connections(owner_key: str, session: Session = Depends(get_db_session)):
     from backend.db.drive.dao import list_connections_from_db
+    from modules.utils.drive_auth import decrypt_token
+    from modules.utils.drive_manager import DriveManager
+    import os
+    
     conns = list_connections_from_db(session, owner_key)
-    return {
-        "connections": [
-            {
-                "connection_id": c.connection_id,
-                "account_email": c.account_email,
-                "status": c.status
-            } for c in conns
-        ]
-    }
+    res_connections = []
+    
+    for c in conns:
+        email = c.account_email
+        # Self-heal unknown emails by fetching via Drive API About resource
+        if not email or email == "unknown@email.com":
+            try:
+                creds_dict = {
+                    "token": decrypt_token(c.access_token_enc),
+                    "refresh_token": decrypt_token(c.refresh_token_enc),
+                    "token_uri": "https://oauth2.googleapis.com/token",
+                    "client_id": os.environ.get("GOOGLE_OAUTH_CLIENT_ID"),
+                    "client_secret": os.environ.get("GOOGLE_OAUTH_CLIENT_SECRET")
+                }
+                manager = DriveManager(credentials_dict=creds_dict)
+                if manager.service:
+                    about = manager.service.about().get(fields="user(emailAddress)").execute()
+                    real_email = about.get("user", {}).get("emailAddress")
+                    if real_email:
+                        c.account_email = real_email
+                        session.commit()
+                        email = real_email
+            except Exception as e:
+                # Log warning and proceed with original email
+                print(f"Failed to self-heal connection email: {e}")
+                
+        res_connections.append({
+            "connection_id": c.connection_id,
+            "account_email": email,
+            "status": c.status
+        })
+        
+    return {"connections": res_connections}
 
 @drive_router.delete("/connections/{connection_id}")
 async def delete_connection(connection_id: str, session: Session = Depends(get_db_session)):
