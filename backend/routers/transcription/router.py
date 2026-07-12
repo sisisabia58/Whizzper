@@ -362,7 +362,25 @@ def run_batch_dispatcher(batch_id: str, selected_ids: list, task_params: dict):
         wav_path = os.path.join(BACKEND_CACHE_DIR, f"{task.uuid}.wav")
         try:
             # 1. Download & Extract
-            manager = DriveManager()
+            manager = None
+            if task_params.get("access_mode") == "connect":
+                from backend.db.drive.dao import get_connection_from_db
+                from modules.utils.drive_auth import decrypt_token
+                conn_id = task_params.get("connection_id")
+                conn = get_connection_from_db(session, conn_id)
+                if conn:
+                    creds_dict = {
+                        "token": decrypt_token(conn.access_token_enc),
+                        "refresh_token": decrypt_token(conn.refresh_token_enc),
+                        "token_uri": "https://oauth2.googleapis.com/token",
+                        "client_id": os.environ.get("GOOGLE_OAUTH_CLIENT_ID"),
+                        "client_secret": os.environ.get("GOOGLE_OAUTH_CLIENT_SECRET")
+                    }
+                    manager = DriveManager(credentials_dict=creds_dict)
+            
+            if not manager:
+                manager = DriveManager()
+                
             manager.download_and_extract_audio(file_id, wav_path)
             
             import wave
