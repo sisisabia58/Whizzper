@@ -9,9 +9,12 @@ import {
   Loader2,
   Check,
   AlertCircle,
-  Clock } from
+  Clock,
+  Globe } from
 'lucide-react';
-import { Transcript, statusLabel, fetchTaskById, deleteTask } from './transcriptions';
+import { Transcript, statusLabel, fetchTaskById, deleteTask, requestShareToken } from './transcriptions';
+import { openGoogleTranslateProxy } from './lib/translateProxy';
+import { TranslateConsentModal } from './components/TranscriptShare/TranslateConsentModal';
 
 const statusStyles: Record<
   Transcript['status'],
@@ -79,6 +82,7 @@ export function triggerDownload(content: string, filename: string, mimeType: str
 
 export function TranscriptRow({ transcript, index, onDelete }: TranscriptRowProps) {
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isTranslateModalOpen, setIsTranslateModalOpen] = useState(false);
 
   const handleDelete = async () => {
     if (!confirm(`Are you sure you want to permanently delete "${name}"? This will delete the database record and purge all associated audio/video files from the server.`)) return;
@@ -90,6 +94,17 @@ export function TranscriptRow({ transcript, index, onDelete }: TranscriptRowProp
       alert("Failed to delete task: " + String(err));
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  const handleTranslateConfirm = async (sourceLang: string, targetLang: string) => {
+    setIsTranslateModalOpen(false);
+    try {
+      const shareData = await requestShareToken(id);
+      const fullUrl = `${window.location.origin}${shareData.share_url}`;
+      openGoogleTranslateProxy(fullUrl, sourceLang, targetLang);
+    } catch (err) {
+      alert("Failed to generate share link for translation: " + String(err));
     }
   };
 
@@ -229,6 +244,14 @@ export function TranscriptRow({ transcript, index, onDelete }: TranscriptRowProp
 
         {isCompleted ?
         <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsTranslateModalOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-full border border-sky-300 text-sky-700 bg-sky-50 hover:bg-sky-100 text-sm font-medium transition-colors"
+              title="Translate & Export via Google Translate Proxy"
+            >
+              <Globe className="w-4 h-4" />
+              <span className="hidden sm:inline">Translate</span>
+            </button>
             <button 
               onClick={downloadTXT}
               className="inline-flex items-center gap-1.5 px-3 py-2 rounded-full border border-zinc-300 text-sm font-medium text-ink hover:bg-paper-off transition-colors"
@@ -262,5 +285,11 @@ export function TranscriptRow({ transcript, index, onDelete }: TranscriptRowProp
           )}
         </button>
       </div>
+
+      <TranslateConsentModal
+        isOpen={isTranslateModalOpen}
+        onConfirm={handleTranslateConfirm}
+        onClose={() => setIsTranslateModalOpen(false)}
+      />
     </motion.div>);
 }

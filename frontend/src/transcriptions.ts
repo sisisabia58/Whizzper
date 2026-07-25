@@ -321,3 +321,11 @@ export async function fetchTaskById(id: string): Promise<any> {
   return res.json();
 }
 
+export async function requestShareToken(taskUuid: string): Promise<{ token: string; share_url: string }> {
+  const resp = await fetch(`/api/transcripts/${taskUuid}/share`, { method: 'POST' });
+  if (!resp.ok) {
+    throw new Error('Failed to create share token');
+  }
+  return resp.json();
+}
+
