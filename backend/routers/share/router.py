@@ -131,7 +131,7 @@ def render_share_page(token: str, db: Session = Depends(get_db_session)):
         text_val = (seg.get("text") or "").strip()
         lines_html.append(
             f'<div class="segment-block" data-idx="{idx}">'
-            f'<div class="segment-meta">{idx + 1}<br>{start_val:.3f} --> {end_val:.3f}</div>'
+            f'<div class="segment-meta notranslate" translate="no">{idx + 1}<br>{start_val:.3f} --> {end_val:.3f}</div>'
             f'<div class="transcript-line" data-index="{idx}" data-start="{start_val}" data-end="{end_val}">{text_val}</div>'
             f'</div>'
         )
@@ -246,13 +246,13 @@ def render_share_page(token: str, db: Session = Depends(get_db_session)):
     }}
     .mode-btn:hover {{ background: #e2e8f0; color: #0f172a; }}
     .mode-btn.active {{ background: #0284c7; color: #ffffff; border-color: #0284c7; }}
-    .error-banner {{ background: #fef2f2; color: #991b1b; padding: 8px 12px; border-radius: 6px; font-size: 0.85rem; display: none; margin-bottom: 12px; border: 1px solid transparent; }}
+    .error-banner {{ background: #fef2f2; color: #991b1b; padding: 8px 12px; border-radius: 6px; font-size: 0.85rem; display: none; margin-bottom: 12px; }}
   </style>
 </head>
 <body>
   <a id="hidden-download-link" style="display:none;" href="#"></a>
 
-  <div class="top-header">
+  <div class="top-header notranslate" translate="no">
     <h2>Whizzper Translation Tool</h2>
   </div>
 
@@ -260,9 +260,9 @@ def render_share_page(token: str, db: Session = Depends(get_db_session)):
     <div class="doc-header">
       <div>
         <h1 class="doc-title">{title}</h1>
-        <div class="doc-date">{date_str}</div>
+        <div class="doc-date notranslate" translate="no">{date_str}</div>
       </div>
-      <button id="main-download-btn" type="button" class="top-download-btn" onclick="triggerActiveDownload(event)">
+      <button id="main-download-btn" type="button" class="top-download-btn notranslate" translate="no" onclick="triggerActiveDownload(event)">
         📥 Download SRT
       </button>
     </div>
@@ -274,16 +274,15 @@ def render_share_page(token: str, db: Session = Depends(get_db_session)):
     </div>
   </div>
 
-  <div class="sticky-bar">
-    <button id="btn-mode-txt" type="button" class="mode-btn" onclick="switchMode('txt')">📄 Translate TXT</button>
-    <button id="btn-mode-srt" type="button" class="mode-btn active" onclick="switchMode('srt')">🎬 Translate SRT</button>
-    <button id="btn-mode-vtt" type="button" class="mode-btn" onclick="switchMode('vtt')">🎬 Translate VTT</button>
+  <div class="sticky-bar notranslate" translate="no">
+    <button id="btn-mode-txt" type="button" class="mode-btn notranslate" translate="no" onclick="switchMode('txt')">📄 Translate TXT</button>
+    <button id="btn-mode-srt" type="button" class="mode-btn active notranslate" translate="no" onclick="switchMode('srt')">🎬 Translate SRT</button>
+    <button id="btn-mode-vtt" type="button" class="mode-btn notranslate" translate="no" onclick="switchMode('vtt')">🎬 Translate VTT</button>
   </div>
 
   <script>
     let currentMode = 'srt';
     const defaultBaseName = {base_stem_json};
-    let isTranslatingAll = false;
 
     function pad(num, len = 2) {{
       return String(num).padStart(len, '0');
@@ -345,44 +344,6 @@ def render_share_page(token: str, db: Session = Depends(get_db_session)):
       }});
     }}
 
-    async function ensureAllLinesTranslated() {{
-      if (isTranslatingAll) return;
-      isTranslatingAll = true;
-
-      const errBox = document.getElementById('error-message');
-      errBox.style.display = 'block';
-      errBox.style.background = '#e0f2fe';
-      errBox.style.color = '#0369a1';
-      errBox.style.borderColor = '#7dd3fc';
-      errBox.innerText = 'Translating entire transcript... Please wait a moment.';
-
-      const lineElements = Array.from(document.querySelectorAll('.transcript-line'));
-      const originalScrollY = window.scrollY;
-
-      const total = lineElements.length;
-      const step = Math.max(1, Math.floor(total / 25));
-      for (let i = 0; i < total; i += step) {{
-        lineElements[i].scrollIntoView({{ behavior: 'instant', block: 'center' }});
-        await new Promise(r => setTimeout(r, 45));
-      }}
-
-      window.scrollTo(0, document.body.scrollHeight);
-      await new Promise(r => setTimeout(r, 350));
-      window.scrollTo(0, originalScrollY);
-
-      errBox.style.display = 'none';
-      errBox.style.background = '#fef2f2';
-      errBox.style.color = '#991b1b';
-      errBox.style.borderColor = 'transparent';
-      isTranslatingAll = false;
-    }}
-
-    window.addEventListener('load', () => {{
-      setTimeout(() => {{
-        ensureAllLinesTranslated().catch(() => {{ isTranslatingAll = false; }});
-      }}, 1200);
-    }});
-
     function extractDOMTranscript() {{
       const container = document.getElementById('transcript-container');
       if (!container) return {{ segments: [], error: "Transcript container missing" }};
@@ -420,13 +381,11 @@ def render_share_page(token: str, db: Session = Depends(get_db_session)):
       return segments.map(s => s.text).join('\\n');
     }}
 
-    async function triggerActiveDownload(e) {{
+    function triggerActiveDownload(e) {{
       if (e) {{
         e.preventDefault();
         e.stopPropagation();
       }}
-
-      await ensureAllLinesTranslated();
 
       const errBox = document.getElementById('error-message');
       errBox.style.display = 'none';
