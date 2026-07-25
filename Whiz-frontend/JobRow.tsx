@@ -115,7 +115,7 @@ export function JobRow({ job, index }: JobRowProps) {
                 {job.folderName}
               </h3>
               <span className="shrink-0 text-[11px] font-medium uppercase tracking-wide text-zinc-500 border border-zinc-200 rounded-full px-2 py-0.5">
-                Drive · {s.total} files
+                {job.source} &middot; {job.files.length} {job.files.length === 1 ? 'file' : 'files'}
               </span>
             </div>
             <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-500">
@@ -126,20 +126,17 @@ export function JobRow({ job, index }: JobRowProps) {
               <span>{job.createdAt}</span>
             </div>
 
-            {/* Aggregate batch progress */}
+            {/* Overall progress bar across files */}
+            {!allDone &&
             <div className="mt-3 max-w-md">
-              <div className="flex items-center justify-between text-xs text-zinc-500 mb-1">
-                <span>
-                  {allDone ?
-                  `${s.completed} completed${s.failed ? `, ${s.failed} failed` : ''}` :
-                  `${s.done} of ${s.total} done`}
-                </span>
-                <span className="font-medium text-ink tabular-nums">
-                  {s.progress}%
-                </span>
-              </div>
-              <div className="h-1.5 rounded-full bg-zinc-200 overflow-hidden">
-                <motion.div
+                <div className="flex items-center justify-between text-xs text-zinc-500 mb-1">
+                  <span>{s.completed} of {s.total} completed</span>
+                  <span className="font-medium text-ink tabular-nums">
+                    {s.progress}%
+                  </span>
+                </div>
+                <div className="h-1.5 rounded-full bg-zinc-200 overflow-hidden">
+                  <motion.div
                   className="h-full rounded-full bg-ink"
                   initial={{
                     width: 0
@@ -151,14 +148,14 @@ export function JobRow({ job, index }: JobRowProps) {
                     duration: 0.8,
                     ease: 'easeOut'
                   }} />
-                
+                </div>
               </div>
-            </div>
+            }
           </div>
         </div>
 
-        {/* Right: status + expand */}
-        <div className="flex items-center gap-2 md:justify-end flex-wrap">
+        {/* Right: status + summary actions */}
+        <div className="flex items-center gap-2 md:justify-end">
           <span
             className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-medium ${statusStyles[rowStatus].className}`}>
             
@@ -166,55 +163,56 @@ export function JobRow({ job, index }: JobRowProps) {
               className={`w-3.5 h-3.5 ${statusStyles[rowStatus].spin ? 'animate-spin' : ''}`}
               strokeWidth={2.5} />
             
-            {isProcessing ?
-            `Processing ${s.done}/${s.total}` :
-            statusLabel[rowStatus]}
+            {statusLabel[rowStatus]}
           </span>
 
-          {allDone && s.completed > 0 &&
+          {allDone &&
           <button
-            onClick={downloadAllSRT}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-full bg-ink text-paper text-sm font-semibold hover:opacity-90 transition-opacity"
-            title="Download all SRT subtitles in a ZIP file">
-            
+              onClick={downloadAllSRT}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-full bg-ink text-paper text-sm font-semibold transition-transform hover:scale-[1.03] active:scale-95"
+              title="Download all subtitles as ZIP">
+              
               <Download className="w-4 h-4" />
-              All SRT
+              <span>All SRT</span>
             </button>
           }
 
-          <ChevronDown
-            className={`w-5 h-5 text-zinc-400 transition-transform ${expanded ? 'rotate-180' : ''}`} />
-          
+          <div
+            className={`w-8 h-8 rounded-full flex items-center justify-center text-zinc-400 transition-transform ${expanded ? 'rotate-180' : ''}`}>
+            
+            <ChevronDown className="w-4 h-4" />
+          </div>
         </div>
       </div>
 
-      {/* Expanded child files */}
+      {/* Expandable sub-file list */}
       <AnimatePresence initial={false}>
         {expanded &&
         <motion.div
-          initial={{
-            height: 0,
-            opacity: 0
-          }}
-          animate={{
-            height: 'auto',
-            opacity: 1
-          }}
-          exit={{
-            height: 0,
-            opacity: 0
-          }}
-          transition={{
-            duration: 0.25
-          }}
-          className="overflow-hidden">
-          
-            <ul className="border-t border-zinc-100 divide-y divide-zinc-100">
+            initial={{
+              height: 0,
+              opacity: 0
+            }}
+            animate={{
+              height: 'auto',
+              opacity: 1
+            }}
+            exit={{
+              height: 0,
+              opacity: 0
+            }}
+            transition={{
+              duration: 0.25,
+              ease: 'easeInOut'
+            }}
+            className="border-t border-zinc-100 bg-paper-off/30">
+            
+            <ul className="divide-y divide-zinc-100">
               {job.files.map((f) => {
               const fs = statusStyles[f.status];
               const FIcon = fs.icon;
               const TypeIcon = f.type === 'video' ? FileVideo : FileAudio;
-              
+
               const handleView = async () => {
                 let activeResult = f.result;
                 if (!activeResult) {
