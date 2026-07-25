@@ -1,7 +1,7 @@
 /**
  * Generates a Google Translate proxy URL for a given public page URL.
- * Converts public domain dots to hyphens and appends `.translate.goog`.
- * Falls back to `translate.google.com` for localhost, IP addresses, or non-standard ports.
+ * Converts public domain hyphens (-) to (--) and dots (.) to (-), then appends `.translate.goog`.
+ * Falls back to `translate.google.com` for localhost, IP addresses, or non-standard hosts.
  */
 export function generateGoogleTranslateProxyUrl(
   pageUrl: string,
@@ -26,8 +26,9 @@ export function generateGoogleTranslateProxyUrl(
       )}&tl=${encodeURIComponent(targetLang)}&u=${encodedUrl}`;
     }
 
-    // Convert domain dots to hyphens: e.g. whizzper.app -> whizzper-app.translate.goog
-    const convertedHost = `${hostname.replace(/\./g, '-')}.translate.goog`;
+    // Convert domain hyphens to '--' and dots to '-' per Google Translate .translate.goog specification
+    // e.g. web-production-d2649.up.railway.app -> web--production--d2649-up-railway-app.translate.goog
+    const convertedHost = `${hostname.replace(/-/g, '--').replace(/\./g, '-')}.translate.goog`;
     const protocol = 'https:';
 
     const searchParams = new URLSearchParams(parsed.search);
