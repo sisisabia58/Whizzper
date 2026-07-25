@@ -125,6 +125,8 @@ app.include_router(task_router, prefix="/api")
 app.include_router(auth_router, prefix="/api")
 from backend.routers.drive.router import drive_router
 app.include_router(drive_router, prefix="/api")
+from backend.routers.share.router import share_router
+app.include_router(share_router)
 
 
 @app.get("/health")
