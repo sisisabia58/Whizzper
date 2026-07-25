@@ -2,7 +2,8 @@ from datetime import datetime, timedelta
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
-from sqlmodel import Session, select
+from sqlalchemy.orm import Session
+from sqlmodel import select
 
 from backend.db.db_instance import get_db_session
 from backend.db.task.models import Task
@@ -11,9 +12,9 @@ from backend.db.share.models import TranscriptShareToken, generate_share_token
 share_router = APIRouter(tags=["Transcript Share"])
 
 def find_task_by_id_or_uuid(db: Session, identifier: str) -> Optional[Task]:
-    task = db.exec(select(Task).where(Task.uuid == identifier)).first()
+    task = db.scalars(select(Task).where(Task.uuid == identifier)).first()
     if not task and identifier.isdigit():
-        task = db.exec(select(Task).where(Task.id == int(identifier))).first()
+        task = db.scalars(select(Task).where(Task.id == int(identifier))).first()
     return task
 
 @share_router.post("/api/transcripts/{task_uuid}/share")
@@ -30,7 +31,7 @@ def create_share_token(
     expires_at = datetime.utcnow() + timedelta(hours=expires_in_hours) if expires_in_hours else None
     
     # Reuse existing active token if present
-    existing = db.exec(
+    existing = db.scalars(
         select(TranscriptShareToken)
         .where(TranscriptShareToken.task_uuid == target_uuid)
         .where(TranscriptShareToken.revoked_at == None)
@@ -65,7 +66,7 @@ def revoke_share_token(task_uuid: str, token: str, db: Session = Depends(get_db_
     task = find_task_by_id_or_uuid(db, task_uuid)
     target_uuid = task.uuid if task else task_uuid
 
-    share_token = db.exec(
+    share_token = db.scalars(
         select(TranscriptShareToken)
         .where(TranscriptShareToken.token == token)
         .where(TranscriptShareToken.task_uuid == target_uuid)
@@ -81,7 +82,7 @@ def revoke_share_token(task_uuid: str, token: str, db: Session = Depends(get_db_
 
 @share_router.get("/transcripts/share/{token}", response_class=HTMLResponse)
 def render_share_page(token: str, db: Session = Depends(get_db_session)):
-    share_token = db.exec(
+    share_token = db.scalars(
         select(TranscriptShareToken).where(TranscriptShareToken.token == token)
     ).first()
 
