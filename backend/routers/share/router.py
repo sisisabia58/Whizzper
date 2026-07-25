@@ -1,5 +1,6 @@
 import os
 import json
+import html
 from datetime import datetime, timedelta
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -129,10 +130,11 @@ def render_share_page(token: str, db: Session = Depends(get_db_session)):
         start_val = seg.get("start", 0.0)
         end_val = seg.get("end", 0.0)
         text_val = (seg.get("text") or "").strip()
+        escaped_orig = html.escape(text_val)
         lines_html.append(
             f'<div class="segment-block" data-idx="{idx}">'
             f'<div class="segment-meta notranslate" translate="no">{idx + 1}<br>{start_val:.3f} --> {end_val:.3f}</div>'
-            f'<div class="transcript-line" data-index="{idx}" data-start="{start_val}" data-end="{end_val}">{text_val}</div>'
+            f'<div class="transcript-line" data-index="{idx}" data-start="{start_val}" data-end="{end_val}" data-original="{escaped_orig}">{text_val}</div>'
             f'</div>'
         )
 
@@ -246,7 +248,7 @@ def render_share_page(token: str, db: Session = Depends(get_db_session)):
     }}
     .mode-btn:hover {{ background: #e2e8f0; color: #0f172a; }}
     .mode-btn.active {{ background: #0284c7; color: #ffffff; border-color: #0284c7; }}
-    .error-banner {{ background: #fef2f2; color: #991b1b; padding: 8px 12px; border-radius: 6px; font-size: 0.85rem; display: none; margin-bottom: 12px; }}
+    .error-banner {{ background: #fef2f2; color: #991b1b; padding: 10px 14px; border-radius: 6px; font-size: 0.85rem; display: none; margin-bottom: 16px; border: 1px solid transparent; }}
   </style>
 </head>
 <body>
@@ -344,6 +346,23 @@ def render_share_page(token: str, db: Session = Depends(get_db_session)):
       }});
     }}
 
+    function getTranslationStatus() {{
+      const lineElements = Array.from(document.querySelectorAll('.transcript-line'));
+      let translatedCount = 0;
+      const untranslatedElements = [];
+
+      for (const el of lineElements) {{
+        const orig = (el.getAttribute('data-original') || '').trim();
+        const current = (el.innerText || '').trim();
+        if (current && orig && current !== orig) {{
+          translatedCount++;
+        }} else {{
+          untranslatedElements.push(el);
+        }}
+      }}
+      return {{ total: lineElements.length, translatedCount, untranslatedElements }};
+    }}
+
     function extractDOMTranscript() {{
       const container = document.getElementById('transcript-container');
       if (!container) return {{ segments: [], error: "Transcript container missing" }};
@@ -381,7 +400,7 @@ def render_share_page(token: str, db: Session = Depends(get_db_session)):
       return segments.map(s => s.text).join('\\n');
     }}
 
-    function triggerActiveDownload(e) {{
+    async function triggerActiveDownload(e) {{
       if (e) {{
         e.preventDefault();
         e.stopPropagation();
@@ -389,7 +408,36 @@ def render_share_page(token: str, db: Session = Depends(get_db_session)):
 
       const errBox = document.getElementById('error-message');
       errBox.style.display = 'none';
-      errBox.innerText = '';
+
+      let status = getTranslationStatus();
+
+      // Smart targeted sweep only if some lines were skipped during fast scrolling
+      if (status.untranslatedElements.length > 0 && status.translatedCount > 0) {{
+        errBox.style.display = 'block';
+        errBox.style.background = '#e0f2fe';
+        errBox.style.color = '#0369a1';
+        errBox.style.borderColor = '#7dd3fc';
+
+        const originalScrollY = window.scrollY;
+        let attempts = 0;
+
+        while (status.untranslatedElements.length > 0 && attempts < 12) {{
+          attempts++;
+          errBox.innerText = `Finalizing translation... (${{status.translatedCount}}/${{status.total}} lines completed)`;
+
+          const targetEl = status.untranslatedElements[0];
+          targetEl.scrollIntoView({{ behavior: 'smooth', block: 'center' }});
+
+          await new Promise(r => setTimeout(r, 350));
+          status = getTranslationStatus();
+        }}
+
+        window.scrollTo({{ top: originalScrollY, behavior: 'smooth' }});
+        errBox.style.display = 'none';
+        errBox.style.background = '#fef2f2';
+        errBox.style.color = '#991b1b';
+        errBox.style.borderColor = 'transparent';
+      }}
 
       const res = extractDOMTranscript();
       if (res.error) {{
