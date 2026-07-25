@@ -1,3 +1,5 @@
+import os
+import json
 from datetime import datetime, timedelta
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -117,7 +119,9 @@ def render_share_page(token: str, db: Session = Depends(get_db_session)):
         segments = task.result
 
     total_count = len(segments)
-    title = task.file_name or "Transcript"
+    raw_title = task.file_name or "Transcript"
+    base_stem = os.path.splitext(raw_title)[0] if raw_title else "Transcript"
+    title = raw_title
     date_str = task.created_at.strftime("%b %d, %Y, %I:%M %p") if hasattr(task, 'created_at') and task.created_at else ""
 
     lines_html = []
@@ -133,6 +137,7 @@ def render_share_page(token: str, db: Session = Depends(get_db_session)):
         )
 
     lines_rendered = "\n".join(lines_html)
+    base_stem_json = json.dumps(base_stem)
 
     full_html = f"""<!DOCTYPE html>
 <html lang="en">
@@ -277,6 +282,7 @@ def render_share_page(token: str, db: Session = Depends(get_db_session)):
 
   <script>
     let currentMode = 'srt';
+    const defaultBaseName = {base_stem_json};
 
     function pad(num, len = 2) {{
       return String(num).padStart(len, '0');
@@ -289,6 +295,20 @@ def render_share_page(token: str, db: Session = Depends(get_db_session)):
       const ms = Math.floor((seconds % 1) * 1000);
       const msSep = isVtt ? '.' : ',';
       return `${{pad(hrs)}}:${{pad(mins)}}:${{pad(secs)}}${{msSep}}${{pad(ms, 3)}}`;
+    }}
+
+    function getExportFilename(mode) {{
+      let base = defaultBaseName;
+      const titleEl = document.querySelector('.doc-title');
+      if (titleEl && titleEl.innerText) {{
+        let text = titleEl.innerText.trim();
+        const lastDot = text.lastIndexOf('.');
+        if (lastDot > 0 && lastDot > text.length - 6) {{
+          text = text.substring(0, lastDot);
+        }}
+        if (text) base = text;
+      }}
+      return `${{base}}.${{mode}}`;
     }}
 
     function switchMode(mode) {{
@@ -354,7 +374,7 @@ def render_share_page(token: str, db: Session = Depends(get_db_session)):
     }}
 
     function buildVTT(segments) {{
-      return 'WEBVTT\\n\\n' + segments.map((s, i) => `${{i + 1}}\\n${{formatTime(s.start, true)}} --> ${{formatTime(s.end, true)}}\\n${{s.text}}\\n`).join('\\n');
+      return 'WEBVTT\\n\\n' + segments.map((s, i) => `${{i + 1}}\\n${{formatTime(s.start, true)}} --> ${{formatTime(s.end, true)}}` + '\\n' + `${{s.text}}\\n`).join('\\n');
     }}
 
     function buildTXT(segments) {{
@@ -377,10 +397,12 @@ def render_share_page(token: str, db: Session = Depends(get_db_session)):
         return;
       }}
 
-      let content = '', filename = `transcript.${{currentMode}}`, mime = 'text/plain';
+      let content = '', mime = 'text/plain';
       if (currentMode === 'srt') {{ content = buildSRT(res.segments); mime = 'application/x-subrip'; }}
       else if (currentMode === 'vtt') {{ content = buildVTT(res.segments); mime = 'text/vtt'; }}
       else if (currentMode === 'txt') {{ content = buildTXT(res.segments); }}
+
+      const filename = getExportFilename(currentMode);
 
       try {{
         const encoded = encodeURIComponent(content);
