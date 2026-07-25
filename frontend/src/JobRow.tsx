@@ -9,10 +9,13 @@ import {
   AlertCircle,
   FileAudio,
   FileVideo,
-  FileText } from
+  FileText,
+  Globe } from
 'lucide-react';
-import { TranscriptJob, jobSummary, statusLabel, fetchTaskById } from './transcriptions';
+import { TranscriptJob, jobSummary, statusLabel, fetchTaskById, requestShareToken } from './transcriptions';
 import { segmentsToSRT, segmentsToTXT, triggerDownload } from './TranscriptRow';
+import { openGoogleTranslateProxy } from './lib/translateProxy';
+import { TranslateConsentModal } from './components/TranscriptShare/TranslateConsentModal';
 interface JobRowProps {
   job: TranscriptJob;
   index: number;
@@ -41,11 +44,25 @@ const statusStyles = {
 } as const;
 export function JobRow({ job, index }: JobRowProps) {
   const [expanded, setExpanded] = useState(false);
+  const [activeTranslateTaskId, setActiveTranslateTaskId] = useState<string | null>(null);
   const s = jobSummary(job);
   const rowStatus = s.status;
   const StatusIcon = statusStyles[rowStatus].icon;
   const isProcessing = rowStatus === 'processing';
   const allDone = s.done === s.total && s.processing === 0 && s.queued === 0;
+
+  const handleTranslateConfirm = async (sourceLang: string, targetLang: string) => {
+    if (!activeTranslateTaskId) return;
+    const taskId = activeTranslateTaskId;
+    setActiveTranslateTaskId(null);
+    try {
+      const shareData = await requestShareToken(taskId);
+      const fullUrl = `${window.location.origin}${shareData.share_url}`;
+      openGoogleTranslateProxy(fullUrl, sourceLang, targetLang);
+    } catch (err) {
+      alert("Failed to generate share link for translation: " + String(err));
+    }
+  };
 
   const downloadAllSRT = (e: React.MouseEvent) => {
     e.stopPropagation(); // Avoid expanding/collapsing row
@@ -279,6 +296,17 @@ export function JobRow({ job, index }: JobRowProps) {
                     {f.status === 'completed' &&
                   <div className="hidden sm:flex items-center gap-1 shrink-0">
                         <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActiveTranslateTaskId(f.id);
+                          }}
+                          className="w-8 h-8 rounded-full flex items-center justify-center text-zinc-400 hover:bg-sky-50 hover:text-sky-600 transition-colors"
+                          title={`Translate & Export for ${f.name}`}
+                          aria-label={`Translate ${f.name}`}
+                        >
+                          <Globe className="w-4 h-4" />
+                        </button>
+                        <button
                       onClick={handleView}
                       className="w-8 h-8 rounded-full flex items-center justify-center text-zinc-400 hover:bg-paper-off hover:text-ink transition-colors"
                       aria-label={`View transcript for ${f.name}`}>
@@ -301,6 +329,12 @@ export function JobRow({ job, index }: JobRowProps) {
           </motion.div>
         }
       </AnimatePresence>
+
+      <TranslateConsentModal
+        isOpen={Boolean(activeTranslateTaskId)}
+        onConfirm={handleTranslateConfirm}
+        onClose={() => setActiveTranslateTaskId(null)}
+      />
     </motion.div>);
 
 }
