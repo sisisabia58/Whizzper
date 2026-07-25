@@ -245,6 +245,8 @@ def render_share_page(token: str, db: Session = Depends(get_db_session)):
   </style>
 </head>
 <body>
+  <a id="hidden-download-link" style="display:none;" href="#"></a>
+
   <div class="top-header">
     <h2>Whizzper Translation Tool</h2>
   </div>
@@ -255,7 +257,7 @@ def render_share_page(token: str, db: Session = Depends(get_db_session)):
         <h1 class="doc-title">{title}</h1>
         <div class="doc-date">{date_str}</div>
       </div>
-      <button id="main-download-btn" class="top-download-btn" onclick="triggerActiveDownload()">
+      <button id="main-download-btn" type="button" class="top-download-btn" onclick="triggerActiveDownload(event)">
         📥 Download SRT
       </button>
     </div>
@@ -268,9 +270,9 @@ def render_share_page(token: str, db: Session = Depends(get_db_session)):
   </div>
 
   <div class="sticky-bar">
-    <button id="btn-mode-txt" class="mode-btn" onclick="switchMode('txt')">📄 Translate TXT</button>
-    <button id="btn-mode-srt" class="mode-btn active" onclick="switchMode('srt')">🎬 Translate SRT</button>
-    <button id="btn-mode-vtt" class="mode-btn" onclick="switchMode('vtt')">🎬 Translate VTT</button>
+    <button id="btn-mode-txt" type="button" class="mode-btn" onclick="switchMode('txt')">📄 Translate TXT</button>
+    <button id="btn-mode-srt" type="button" class="mode-btn active" onclick="switchMode('srt')">🎬 Translate SRT</button>
+    <button id="btn-mode-vtt" type="button" class="mode-btn" onclick="switchMode('vtt')">🎬 Translate VTT</button>
   </div>
 
   <script>
@@ -359,7 +361,11 @@ def render_share_page(token: str, db: Session = Depends(get_db_session)):
       return segments.map(s => s.text).join('\\n');
     }}
 
-    function triggerActiveDownload() {{
+    function triggerActiveDownload(e) {{
+      if (e) {{
+        e.preventDefault();
+        e.stopPropagation();
+      }}
       const errBox = document.getElementById('error-message');
       errBox.style.display = 'none';
       errBox.innerText = '';
@@ -376,9 +382,22 @@ def render_share_page(token: str, db: Session = Depends(get_db_session)):
       else if (currentMode === 'vtt') {{ content = buildVTT(res.segments); mime = 'text/vtt'; }}
       else if (currentMode === 'txt') {{ content = buildTXT(res.segments); }}
 
+      try {{
+        const encoded = encodeURIComponent(content);
+        const dataUrl = 'data:' + mime + ';charset=utf-8,' + encoded;
+        const dlLink = document.getElementById('hidden-download-link');
+        if (dlLink) {{
+          dlLink.setAttribute('href', dataUrl);
+          dlLink.setAttribute('download', filename);
+          dlLink.click();
+          return;
+        }}
+      }} catch (err) {{}}
+
       const blob = new Blob([content], {{ type: mime }});
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
+      a.setAttribute('type', 'button');
       a.href = url;
       a.download = filename;
       document.body.appendChild(a);
