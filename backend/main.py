@@ -83,6 +83,7 @@ async def lifespan(app: FastAPI):
     from sqlmodel import SQLModel
     import backend.db.task.models
     import backend.db.batch.models
+    import backend.db.share.models
     SQLModel.metadata.create_all(bind=engine)
 
     transcription_pipeline = get_pipeline()
