@@ -1,4 +1,3 @@
-import assert from 'node:assert';
 import {
   DOMSegment,
   formatSRTTimestamp,
@@ -8,6 +7,18 @@ import {
   exportToTXT
 } from '../transcriptExport';
 
+function assertEqual(actual: string, expected: string) {
+  if (actual !== expected) {
+    throw new Error(`Assertion failed: expected "${expected}", got "${actual}"`);
+  }
+}
+
+function assertContains(haystack: string, needle: string) {
+  if (!haystack.includes(needle)) {
+    throw new Error(`Assertion failed: expected output to include "${needle}"`);
+  }
+}
+
 function testFormattersAndExporters() {
   const sampleSegments: DOMSegment[] = [
     { index: 0, start: 1.0, end: 4.5, text: 'First translated line' },
@@ -15,26 +26,28 @@ function testFormattersAndExporters() {
   ];
 
   // SRT Timestamp format
-  assert.strictEqual(formatSRTTimestamp(1.0), '00:00:01,000');
-  assert.strictEqual(formatSRTTimestamp(3665.123), '01:01:05,123');
+  assertEqual(formatSRTTimestamp(1.0), '00:00:01,000');
+  assertEqual(formatSRTTimestamp(3665.123), '01:01:05,123');
 
   // VTT Timestamp format
-  assert.strictEqual(formatVTTTimestamp(1.0), '00:00:01.000');
-  assert.strictEqual(formatVTTTimestamp(3665.123), '01:01:05.123');
+  assertEqual(formatVTTTimestamp(1.0), '00:00:01.000');
+  assertEqual(formatVTTTimestamp(3665.123), '01:01:05.123');
 
   // SRT Export
   const srt = exportToSRT(sampleSegments);
-  assert.ok(srt.includes('1\n00:00:01,000 --> 00:00:04,500\nFirst translated line'));
-  assert.ok(srt.includes('2\n00:00:05,250 --> 00:00:08,705\nSecond translated line'));
+  assertContains(srt, '1\n00:00:01,000 --> 00:00:04,500\nFirst translated line');
+  assertContains(srt, '2\n00:00:05,250 --> 00:00:08,705\nSecond translated line');
 
   // VTT Export
   const vtt = exportToVTT(sampleSegments);
-  assert.ok(vtt.startsWith('WEBVTT'));
-  assert.ok(vtt.includes('1\n00:00:01.000 --> 00:00:04.500\nFirst translated line'));
+  if (!vtt.startsWith('WEBVTT')) {
+    throw new Error('Assertion failed: VTT must start with WEBVTT');
+  }
+  assertContains(vtt, '1\n00:00:01.000 --> 00:00:04.500\nFirst translated line');
 
   // TXT Export
   const txt = exportToTXT(sampleSegments);
-  assert.strictEqual(txt, 'First translated line\nSecond translated line');
+  assertEqual(txt, 'First translated line\nSecond translated line');
 
   console.log('✓ transcriptExport formatters and exporters passed');
 }
