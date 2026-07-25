@@ -246,7 +246,7 @@ def render_share_page(token: str, db: Session = Depends(get_db_session)):
     }}
     .mode-btn:hover {{ background: #e2e8f0; color: #0f172a; }}
     .mode-btn.active {{ background: #0284c7; color: #ffffff; border-color: #0284c7; }}
-    .error-banner {{ background: #fef2f2; color: #991b1b; padding: 8px 12px; border-radius: 6px; font-size: 0.85rem; display: none; margin-bottom: 12px; }}
+    .error-banner {{ background: #fef2f2; color: #991b1b; padding: 8px 12px; border-radius: 6px; font-size: 0.85rem; display: none; margin-bottom: 12px; border: 1px solid transparent; }}
   </style>
 </head>
 <body>
@@ -283,6 +283,7 @@ def render_share_page(token: str, db: Session = Depends(get_db_session)):
   <script>
     let currentMode = 'srt';
     const defaultBaseName = {base_stem_json};
+    let isTranslatingAll = false;
 
     function pad(num, len = 2) {{
       return String(num).padStart(len, '0');
@@ -344,6 +345,44 @@ def render_share_page(token: str, db: Session = Depends(get_db_session)):
       }});
     }}
 
+    async function ensureAllLinesTranslated() {{
+      if (isTranslatingAll) return;
+      isTranslatingAll = true;
+
+      const errBox = document.getElementById('error-message');
+      errBox.style.display = 'block';
+      errBox.style.background = '#e0f2fe';
+      errBox.style.color = '#0369a1';
+      errBox.style.borderColor = '#7dd3fc';
+      errBox.innerText = 'Translating entire transcript... Please wait a moment.';
+
+      const lineElements = Array.from(document.querySelectorAll('.transcript-line'));
+      const originalScrollY = window.scrollY;
+
+      const total = lineElements.length;
+      const step = Math.max(1, Math.floor(total / 25));
+      for (let i = 0; i < total; i += step) {{
+        lineElements[i].scrollIntoView({{ behavior: 'instant', block: 'center' }});
+        await new Promise(r => setTimeout(r, 45));
+      }}
+
+      window.scrollTo(0, document.body.scrollHeight);
+      await new Promise(r => setTimeout(r, 350));
+      window.scrollTo(0, originalScrollY);
+
+      errBox.style.display = 'none';
+      errBox.style.background = '#fef2f2';
+      errBox.style.color = '#991b1b';
+      errBox.style.borderColor = 'transparent';
+      isTranslatingAll = false;
+    }}
+
+    window.addEventListener('load', () => {{
+      setTimeout(() => {{
+        ensureAllLinesTranslated().catch(() => {{ isTranslatingAll = false; }});
+      }}, 1200);
+    }});
+
     function extractDOMTranscript() {{
       const container = document.getElementById('transcript-container');
       if (!container) return {{ segments: [], error: "Transcript container missing" }};
@@ -381,11 +420,14 @@ def render_share_page(token: str, db: Session = Depends(get_db_session)):
       return segments.map(s => s.text).join('\\n');
     }}
 
-    function triggerActiveDownload(e) {{
+    async function triggerActiveDownload(e) {{
       if (e) {{
         e.preventDefault();
         e.stopPropagation();
       }}
+
+      await ensureAllLinesTranslated();
+
       const errBox = document.getElementById('error-message');
       errBox.style.display = 'none';
       errBox.innerText = '';
