@@ -15,6 +15,7 @@ import {
 import { TranscriptJob, jobSummary, statusLabel, fetchTaskById, requestShareToken } from './transcriptions';
 import { segmentsToSRT, segmentsToTXT, triggerDownload } from './TranscriptRow';
 import { openGoogleTranslateProxy } from './lib/translateProxy';
+import { buildSharePageUrl, googleTranslateProxySupported, resolveSharePageOrigin } from './lib/appOrigin';
 import { TranslateConsentModal } from './components/TranscriptShare/TranslateConsentModal';
 interface JobRowProps {
   job: TranscriptJob;
@@ -53,7 +54,14 @@ export function JobRow({ job, index }: JobRowProps) {
   const handleTranslateSubFile = async (taskId: string) => {
     try {
       const shareData = await requestShareToken(taskId);
-      const fullUrl = `${window.location.origin}${shareData.share_url}`;
+      const origin = await resolveSharePageOrigin();
+      const fullUrl = buildSharePageUrl(origin, shareData.share_url);
+      if (!googleTranslateProxySupported(fullUrl)) {
+        alert(
+          'Google Translate cannot proxy localhost URLs. Set PUBLIC_APP_URL in backend/configs/.env to a public HTTPS URL that reaches this server (e.g. a cloudflared tunnel), then restart the backend.'
+        );
+        return;
+      }
       openGoogleTranslateProxy(fullUrl, 'auto', 'en');
     } catch (err) {
       alert("Failed to generate share link for translation: " + String(err));

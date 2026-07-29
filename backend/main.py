@@ -175,6 +175,13 @@ def metrics():
     return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
+@app.get("/api/config/client")
+def client_config():
+    """Runtime client config (e.g. public URL for Google Translate share links in local dev)."""
+    public_url = os.getenv("PUBLIC_APP_URL", "").strip().rstrip("/")
+    return {"public_app_url": public_url or None}
+
+
 from fastapi.staticfiles import StaticFiles
 
 app.mount("/", StaticFiles(directory="backend/static", html=True), name="static")

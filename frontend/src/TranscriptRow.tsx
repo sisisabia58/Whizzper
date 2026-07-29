@@ -14,6 +14,7 @@ import {
 'lucide-react';
 import { Transcript, statusLabel, fetchTaskById, deleteTask, requestShareToken } from './transcriptions';
 import { openGoogleTranslateProxy } from './lib/translateProxy';
+import { buildSharePageUrl, googleTranslateProxySupported, resolveSharePageOrigin } from './lib/appOrigin';
 import { TranslateConsentModal } from './components/TranscriptShare/TranslateConsentModal';
 
 const statusStyles: Record<
@@ -99,7 +100,14 @@ export function TranscriptRow({ transcript, index, onDelete }: TranscriptRowProp
   const handleTranslate = async () => {
     try {
       const shareData = await requestShareToken(id);
-      const fullUrl = `${window.location.origin}${shareData.share_url}`;
+      const origin = await resolveSharePageOrigin();
+      const fullUrl = buildSharePageUrl(origin, shareData.share_url);
+      if (!googleTranslateProxySupported(fullUrl)) {
+        alert(
+          'Google Translate cannot proxy localhost URLs. Set PUBLIC_APP_URL in backend/configs/.env to a public HTTPS URL that reaches this server (e.g. a cloudflared tunnel), then restart the backend.'
+        );
+        return;
+      }
       openGoogleTranslateProxy(fullUrl, 'auto', 'en');
     } catch (err) {
       alert("Failed to generate share link for translation: " + String(err));

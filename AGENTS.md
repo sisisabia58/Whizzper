@@ -26,6 +26,11 @@ uvicorn backend.main:app --host 0.0.0.0 --port 8000
 - `DB_URL` — e.g. `postgresql+psycopg2://whizzper:whizzper@127.0.0.1:5432/whizzper` (falls back to `DATABASE_URL`, then `sqlite:///./whizzper.db`).
 - `REDIS_URL` — e.g. `redis://localhost:6379/0` (Celery broker/backend; the transcription path uses FastAPI `BackgroundTasks`, not Celery, so a Celery worker is not required for transcription).
 - `MODAL_WEB_ENDPOINT_URL` (or `MODAL_ENDPOINTS`) — deployed Modal inference endpoint(s), comma-separated for a pool. Provided via a Cursor secret; sourcing `.env` puts it in the process env so the Modal pool is built at import. Verify with `/health` (shows `pool` with healthy endpoints). See "Two run modes" below.
+- `PUBLIC_APP_URL` — optional public HTTPS origin (no trailing slash) used for Google Translate share links when the UI is opened at `localhost` (Cursor port-forward). Google cannot proxy `localhost`; expose port 8000 with a tunnel (e.g. `cloudflared tunnel --url http://127.0.0.1:8000`) and set this to the tunnel URL. Production Railway/custom domains do not need this.
+
+### Google Translate share links (localhost)
+
+The translate feature opens share pages through Google’s `.translate.goog` proxy, which requires a **publicly reachable hostname**. Accessing the app at `http://localhost:8000` (including Cursor Cloud port-forward) will show “Can’t translate this page” unless `PUBLIC_APP_URL` points to a tunnel URL that reaches this server. On Railway/production, `window.location.origin` is already public and translate works without extra config.
 
 ### Two run modes (important CPU gotcha)
 
