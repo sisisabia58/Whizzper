@@ -2,7 +2,7 @@
 
 ## Cursor Cloud specific instructions
 
-Whizzper (branch `Improvement-v3`) is a hybrid transcription app. Production topology: **Modal** runs GPU inference (`modal_app.py`), **Railway** runs the FastAPI web app which serves the React frontend and talks to a **Postgres** DB (+ **Redis**). Gradio (`app.py`) is legacy and no longer used on this branch.
+Whizzper (branch `improvement-v4`) is a hybrid transcription app. Production topology: **Modal** runs GPU inference (`modal_app.py`), **Railway** runs the FastAPI web app which serves the React frontend and talks to a **Postgres** DB (+ **Redis**). Gradio (`app.py`) is legacy and no longer used on this branch.
 
 ### Services
 
