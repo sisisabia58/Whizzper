@@ -15,11 +15,17 @@ Whizzper (branch `Improvement-v3`) is a hybrid transcription app. Production top
 
 ### Required env vars (read at import time)
 
-`backend/db/db_instance.py` and `backend/queue/celery_app.py` read env vars at **import** (before the `.env` in `backend/configs/.env` is loaded), so export these when launching `uvicorn` rather than relying only on the dotenv:
+`backend/db/db_instance.py`, `backend/queue/celery_app.py`, and the Modal pool in `backend/routers/transcription/router.py` read env vars at **import** (before the `.env` is loaded inside `lifespan`), so these must be in the process env at launch. Put them in `backend/configs/.env` (gitignored) and source it before `uvicorn`, e.g.:
+
+```
+source venv/bin/activate
+set -a; source backend/configs/.env; set +a
+uvicorn backend.main:app --host 0.0.0.0 --port 8000
+```
 
 - `DB_URL` — e.g. `postgresql+psycopg2://whizzper:whizzper@127.0.0.1:5432/whizzper` (falls back to `DATABASE_URL`, then `sqlite:///./whizzper.db`).
-- `REDIS_URL` — e.g. `redis://localhost:6379/0` (Celery broker/backend; note the transcription path uses FastAPI `BackgroundTasks`, not Celery, so a Celery worker is not required for transcription).
-- `MODAL_WEB_ENDPOINT_URL` (or `MODAL_ENDPOINTS`) — the deployed Modal inference endpoint. See "Two run modes" below.
+- `REDIS_URL` — e.g. `redis://localhost:6379/0` (Celery broker/backend; the transcription path uses FastAPI `BackgroundTasks`, not Celery, so a Celery worker is not required for transcription).
+- `MODAL_WEB_ENDPOINT_URL` (or `MODAL_ENDPOINTS`) — deployed Modal inference endpoint(s), comma-separated for a pool. Provided via a Cursor secret; sourcing `.env` puts it in the process env so the Modal pool is built at import. Verify with `/health` (shows `pool` with healthy endpoints). See "Two run modes" below.
 
 ### Two run modes (important CPU gotcha)
 
