@@ -82,7 +82,11 @@ def test_share_token_creation_and_html_render():
     assert 'font-size: 0.01px' in html_content
     assert 'scrollIntoView' not in html_content
     assert 'sweepTranslation' not in html_content
+    assert 'translation-overlay' not in html_content
     assert 'getElementById(\'download-source\')' in html_content
+    assert "document.addEventListener('DOMContentLoaded'" in html_content
+    assert 'switchMode(\'srt\')' in html_content
+    assert 'function triggerActiveDownload' in html_content
 
     # 4. Revoke token
     del_resp = client.delete(f"/api/transcripts/test-task-share-123/share/{token}")
