@@ -75,19 +75,15 @@ def test_share_token_creation_and_html_render():
     assert 'class="segment-time notranslate"' in html_content
     assert '00:00:00,000 --> 00:00:02,500' in html_content
 
-    # Masked translation sweep (scroll hidden behind overlay, not visible to user)
-    assert '#translation-overlay' in html_content
-    assert 'sweepTranslationBehindOverlay' in html_content
-    assert 'ensureTranslationSweep' in html_content
-    assert "behavior: 'instant'" in html_content
+    # TurboScribe-style: no scroll sweep, instant download
+    assert 'scrollIntoView' not in html_content
+    assert 'sweepTranslationBehindOverlay' not in html_content
+    assert 'translation-overlay' not in html_content
+    assert 'translation-status' not in html_content
     assert 'Finalizing translation' not in html_content
-    assert 'behavior: \'smooth\'' not in html_content
-
-    # Translation readiness UI and DOMContentLoaded init
-    assert 'id="translation-status"' in html_content
-    assert 'updateTranslationStatusUI' in html_content
     assert "document.addEventListener('DOMContentLoaded'" in html_content
     assert 'switchMode(\'srt\')' in html_content
+    assert 'function triggerActiveDownload' in html_content
 
     # 4. Revoke token
     del_resp = client.delete(f"/api/transcripts/test-task-share-123/share/{token}")

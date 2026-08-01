@@ -7,23 +7,20 @@ function assertEqual(actual: string, expected: string) {
 }
 
 function testGenerateProxyUrl() {
-  // Simple domain
   const publicUrl = 'https://whizzper.app/transcripts/share/st_12345';
   const proxyUrl = generateGoogleTranslateProxyUrl(publicUrl, 'en', 'id');
   assertEqual(
     proxyUrl,
-    'https://whizzper-app.translate.goog/transcripts/share/st_12345?_x_tr_sl=en&_x_tr_tl=id&_x_tr_hl=en-US&_x_tr_pto=wapp'
+    'https://translate.google.com/translate?sl=en&tl=id&u=' + encodeURIComponent(publicUrl)
   );
 
-  // Subdomain with hyphens (e.g. Railway subdomains)
   const railwayUrl = 'https://web-production-d2649.up.railway.app/transcripts/share/st_12345';
   const railwayProxyUrl = generateGoogleTranslateProxyUrl(railwayUrl, 'auto', 'en');
   assertEqual(
     railwayProxyUrl,
-    'https://web--production--d2649-up-railway-app.translate.goog/transcripts/share/st_12345?_x_tr_sl=auto&_x_tr_tl=en&_x_tr_hl=en-US&_x_tr_pto=wapp'
+    'https://translate.google.com/translate?sl=auto&tl=en&u=' + encodeURIComponent(railwayUrl)
   );
 
-  // Localhost fallback
   const localUrl = 'http://localhost:8000/transcripts/share/st_12345';
   const localProxyUrl = generateGoogleTranslateProxyUrl(localUrl, 'auto', 'es');
   assertEqual(
