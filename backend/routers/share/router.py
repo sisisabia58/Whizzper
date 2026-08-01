@@ -265,6 +265,28 @@ def render_share_page(token: str, db: Session = Depends(get_db_session)):
       text-align: center;
     }}
     .translation-status.ready {{ color: #059669; }}
+    #translation-overlay {{
+      position: fixed;
+      inset: 0;
+      background: #f1f5f9;
+      background-image: radial-gradient(#cbd5e1 1px, transparent 1px);
+      background-size: 16px 16px;
+      z-index: 10000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 10px;
+    }}
+    #translation-overlay .overlay-title {{
+      font-weight: 700;
+      font-size: 1.05rem;
+      color: #0f172a;
+    }}
+    #translation-overlay .overlay-progress {{
+      color: #64748b;
+      font-size: 0.9rem;
+    }}
     .mode-btn {{
       background: #f1f5f9;
       color: #475569;
@@ -318,6 +340,7 @@ def render_share_page(token: str, db: Session = Depends(get_db_session)):
 
   <script>
     let currentMode = 'srt';
+    let sweepPromise = null;
     const defaultBaseName = {base_stem_json};
 
     function pad(num, len = 2) {{
@@ -423,6 +446,11 @@ def render_share_page(token: str, db: Session = Depends(get_db_session)):
       const statusEl = document.getElementById('translation-status');
       if (!statusEl) return;
       const status = getTranslationStatus();
+      if (sweepPromise) {{
+        statusEl.innerText = `Translating… ${{status.translatedCount}}/${{status.total}} lines`;
+        statusEl.classList.remove('ready');
+        return;
+      }}
       if (isTranslationReady(status)) {{
         statusEl.innerText = 'Ready to download';
         statusEl.classList.add('ready');
@@ -432,32 +460,78 @@ def render_share_page(token: str, db: Session = Depends(get_db_session)):
       }}
     }}
 
-    async function nudgeElementIntoViewport(el) {{
-      const savedStyle = el.getAttribute('style') || '';
-      el.style.cssText = savedStyle + ';position:fixed;top:0;left:0;opacity:0;pointer-events:none;z-index:-1;width:auto;height:auto;';
-      await new Promise(r => setTimeout(r, 300));
-      if (savedStyle) {{
-        el.setAttribute('style', savedStyle);
-      }} else {{
-        el.removeAttribute('style');
-      }}
+    function createTranslationOverlay() {{
+      const overlay = document.createElement('div');
+      overlay.id = 'translation-overlay';
+      overlay.className = 'notranslate';
+      overlay.setAttribute('translate', 'no');
+      overlay.innerHTML = '<div class="overlay-title">Preparing translation…</div><div class="overlay-progress" id="overlay-progress">0/0 lines</div>';
+      return overlay;
     }}
 
-    async function finalizeUntranslatedLines() {{
-      const maxAttempts = 30;
-      const deadline = Date.now() + 10000;
-      let attempts = 0;
+    function sleep(ms) {{
+      return new Promise(r => setTimeout(r, ms));
+    }}
 
-      while (attempts < maxAttempts && Date.now() < deadline) {{
-        const status = getTranslationStatus();
-        if (isTranslationReady(status)) return status;
-        if (status.untranslatedElements.length === 0) return status;
+    async function sweepTranslationBehindOverlay() {{
+      let overlay = document.getElementById('translation-overlay');
+      if (!overlay) {{
+        overlay = createTranslationOverlay();
+        document.body.appendChild(overlay);
+      }}
+      const progressEl = document.getElementById('overlay-progress');
+      const savedScrollY = window.scrollY;
+      let status = getTranslationStatus();
 
-        await nudgeElementIntoViewport(status.untranslatedElements[0]);
-        attempts++;
+      if (isTranslationReady(status)) {{
+        overlay.remove();
+        updateTranslationStatusUI();
+        return status;
       }}
 
-      return getTranslationStatus();
+      // Coarse pass: advance by viewport-height steps so GT translates each screen of content
+      const step = Math.max(Math.floor(window.innerHeight * 0.75), 300);
+      const maxScroll = document.documentElement.scrollHeight;
+      for (let y = 0; y <= maxScroll; y += step) {{
+        window.scrollTo({{ top: y, behavior: 'instant' }});
+        await sleep(400);
+        status = getTranslationStatus();
+        if (progressEl) progressEl.innerText = `${{status.translatedCount}}/${{status.total}} lines`;
+        updateTranslationStatusUI();
+        if (isTranslationReady(status)) break;
+      }}
+
+      // Fine pass: visit each remaining untranslated line
+      let stallRounds = 0;
+      while (!isTranslationReady(status) && stallRounds < 10) {{
+        const prevCount = status.translatedCount;
+        const pending = [...status.untranslatedElements];
+        for (const el of pending) {{
+          el.scrollIntoView({{ block: 'center', behavior: 'instant' }});
+          await sleep(200);
+          status = getTranslationStatus();
+          if (progressEl) progressEl.innerText = `${{status.translatedCount}}/${{status.total}} lines`;
+          updateTranslationStatusUI();
+          if (isTranslationReady(status)) break;
+        }}
+        stallRounds = status.translatedCount === prevCount ? stallRounds + 1 : 0;
+        await sleep(300);
+      }}
+
+      window.scrollTo({{ top: savedScrollY, behavior: 'instant' }});
+      overlay.remove();
+      updateTranslationStatusUI();
+      return status;
+    }}
+
+    function ensureTranslationSweep() {{
+      if (!sweepPromise) {{
+        sweepPromise = sweepTranslationBehindOverlay().finally(() => {{
+          sweepPromise = null;
+          updateTranslationStatusUI();
+        }});
+      }}
+      return sweepPromise;
     }}
 
     function extractDOMTranscript() {{
@@ -504,67 +578,77 @@ def render_share_page(token: str, db: Session = Depends(get_db_session)):
       }}
 
       const errBox = document.getElementById('error-message');
+      const dlBtn = document.getElementById('main-download-btn');
       errBox.style.display = 'none';
       errBox.style.background = '#fef2f2';
       errBox.style.color = '#991b1b';
       errBox.style.borderColor = 'transparent';
 
-      let status = getTranslationStatus();
-
-      if (!isTranslationReady(status) && status.untranslatedElements.length > 0 && status.translatedCount > 0) {{
-        status = await finalizeUntranslatedLines();
-      }}
-
-      if (!isTranslationReady(status) && status.translatedCount > 0 && status.translatedCount < status.total) {{
-        errBox.innerText = `Note: ${{status.translatedCount}}/${{status.total}} lines translated. Download may include untranslated text.`;
-        errBox.style.background = '#fffbeb';
-        errBox.style.color = '#92400e';
-        errBox.style.borderColor = '#fcd34d';
-        errBox.style.display = 'block';
-      }}
-
-      const res = extractDOMTranscript();
-      if (res.error) {{
-        errBox.innerText = res.error;
-        errBox.style.display = 'block';
-        return;
-      }}
-
-      let content = '', mime = 'text/plain';
-      if (currentMode === 'srt') {{ content = buildSRT(res.segments); mime = 'application/x-subrip'; }}
-      else if (currentMode === 'vtt') {{ content = buildVTT(res.segments); mime = 'text/vtt'; }}
-      else if (currentMode === 'txt') {{ content = buildTXT(res.segments); }}
-
-      const filename = getExportFilename(currentMode);
+      if (dlBtn) dlBtn.disabled = true;
 
       try {{
-        const encoded = encodeURIComponent(content);
-        const dataUrl = 'data:' + mime + ';charset=utf-8,' + encoded;
-        const dlLink = document.getElementById('hidden-download-link');
-        if (dlLink) {{
-          dlLink.setAttribute('href', dataUrl);
-          dlLink.setAttribute('download', filename);
-          dlLink.click();
+        let status = await ensureTranslationSweep();
+
+        if (!isTranslationReady(status)) {{
+          status = await sweepTranslationBehindOverlay();
+        }}
+
+        if (!isTranslationReady(status) && status.translatedCount > 0 && status.translatedCount < status.total) {{
+          errBox.innerText = `Translation incomplete (${{status.translatedCount}}/${{status.total}} lines). Please wait a moment and try again.`;
+          errBox.style.background = '#fffbeb';
+          errBox.style.color = '#92400e';
+          errBox.style.borderColor = '#fcd34d';
+          errBox.style.display = 'block';
           return;
         }}
-      }} catch (err) {{}}
 
-      const blob = new Blob([content], {{ type: mime }});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.setAttribute('type', 'button');
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+        const res = extractDOMTranscript();
+        if (res.error) {{
+          errBox.innerText = res.error;
+          errBox.style.display = 'block';
+          return;
+        }}
+
+        let content = '', mime = 'text/plain';
+        if (currentMode === 'srt') {{ content = buildSRT(res.segments); mime = 'application/x-subrip'; }}
+        else if (currentMode === 'vtt') {{ content = buildVTT(res.segments); mime = 'text/vtt'; }}
+        else if (currentMode === 'txt') {{ content = buildTXT(res.segments); }}
+
+        const filename = getExportFilename(currentMode);
+
+        try {{
+          const encoded = encodeURIComponent(content);
+          const dataUrl = 'data:' + mime + ';charset=utf-8,' + encoded;
+          const dlLink = document.getElementById('hidden-download-link');
+          if (dlLink) {{
+            dlLink.setAttribute('href', dataUrl);
+            dlLink.setAttribute('download', filename);
+            dlLink.click();
+            return;
+          }}
+        }} catch (err) {{}}
+
+        const blob = new Blob([content], {{ type: mime }});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.setAttribute('type', 'button');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }} finally {{
+        if (dlBtn) dlBtn.disabled = false;
+      }}
     }}
 
     document.addEventListener('DOMContentLoaded', () => {{
       switchMode('srt');
       updateTranslationStatusUI();
       setInterval(updateTranslationStatusUI, 1000);
+      // Start masked sweep shortly after load so GT can finish its initial pass first
+      setTimeout(() => ensureTranslationSweep(), 1500);
     }});
   </script>
 </body>
