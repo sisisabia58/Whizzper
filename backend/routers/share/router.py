@@ -35,6 +35,26 @@ def format_vtt_timestamp(seconds: float) -> str:
     return f"{_pad(hrs)}:{_pad(mins)}:{_pad(secs)}.{_pad(ms, 3)}"
 
 
+def render_segment_rows(segments: list) -> str:
+    """TurboScribe-style rows: index + timestamp (notranslate) + text (translate=yes)."""
+    rows = []
+    for idx, seg in enumerate(segments):
+        start_val = seg.get("start", 0.0)
+        end_val = seg.get("end", 0.0)
+        text_val = (seg.get("text") or "").strip()
+        escaped_orig = html.escape(text_val)
+        srt_time = f"{format_srt_timestamp(start_val)} --> {format_srt_timestamp(end_val)}"
+        rows.append(
+            f'<div class="segment-block">'
+            f'<div class="segment-index notranslate" translate="no">{idx + 1}</div>'
+            f'<div class="segment-time notranslate" translate="no">{srt_time}</div>'
+            f'<div class="transcript-line" translate="yes" data-index="{idx}" data-start="{start_val}" '
+            f'data-end="{end_val}" data-original="{escaped_orig}">{text_val}</div>'
+            f'</div>'
+        )
+    return "\n".join(rows)
+
+
 def find_task_by_id_or_uuid(db: Session, identifier: str) -> Optional[Task]:
     task = db.scalars(select(Task).where(Task.uuid == identifier)).first()
     if not task and identifier.isdigit():
@@ -146,22 +166,8 @@ def render_share_page(token: str, db: Session = Depends(get_db_session)):
     title = raw_title
     date_str = task.created_at.strftime("%b %d, %Y, %I:%M %p") if hasattr(task, 'created_at') and task.created_at else ""
 
-    lines_html = []
-    for idx, seg in enumerate(segments):
-        start_val = seg.get("start", 0.0)
-        end_val = seg.get("end", 0.0)
-        text_val = (seg.get("text") or "").strip()
-        escaped_orig = html.escape(text_val)
-        srt_time = f"{format_srt_timestamp(start_val)} --> {format_srt_timestamp(end_val)}"
-        lines_html.append(
-            f'<div class="segment-block" data-idx="{idx}">'
-            f'<div class="segment-index notranslate" translate="no">{idx + 1}</div>'
-            f'<div class="segment-time notranslate" translate="no">{srt_time}</div>'
-            f'<div class="transcript-line" data-index="{idx}" data-start="{start_val}" data-end="{end_val}" data-original="{escaped_orig}">{text_val}</div>'
-            f'</div>'
-        )
-
-    lines_rendered = "\n".join(lines_html)
+    lines_html = render_segment_rows(segments)
+    lines_rendered = lines_html
     base_stem_json = json.dumps(base_stem)
 
     full_html = f"""<!DOCTYPE html>
@@ -240,6 +246,17 @@ def render_share_page(token: str, db: Session = Depends(get_db_session)):
     .segment-index {{ color: #64748b; font-size: 0.8rem; margin-bottom: 2px; }}
     .segment-time {{ color: #64748b; font-size: 0.8rem; margin-bottom: 4px; }}
     .transcript-line {{ color: #0f172a; word-break: break-word; }}
+    .download-source {{
+      font-size: 0.01px;
+      color: transparent;
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 1px;
+      height: 0;
+      overflow: hidden;
+      pointer-events: none;
+    }}
 
     .sticky-bar {{
       position: fixed;
@@ -296,7 +313,12 @@ def render_share_page(token: str, db: Session = Depends(get_db_session)):
 
     <div id="error-message" class="error-banner"></div>
 
-    <div id="transcript-container" data-total="{total_count}">
+    <div id="transcript-container" class="format-body" data-total="{total_count}">
+{lines_rendered}
+    </div>
+
+    <!-- TurboScribe-style hidden mirror: GT translates all translate=yes nodes in DOM -->
+    <div id="download-source" class="download-source format-body notranslate" translate="no" data-total="{total_count}" aria-hidden="true">
 {lines_rendered}
     </div>
   </div>
@@ -378,7 +400,8 @@ def render_share_page(token: str, db: Session = Depends(get_db_session)):
     }}
 
     function extractDOMTranscript() {{
-      const container = document.getElementById('transcript-container');
+      // Read from hidden download mirror (TurboScribe pattern) — fully in DOM for GT
+      const container = document.getElementById('download-source') || document.getElementById('transcript-container');
       if (!container) return {{ segments: [], error: "Transcript container missing" }};
       const expectedTotal = parseInt(container.getAttribute('data-total') || '0', 10);
       const lineElements = Array.from(container.querySelectorAll('.transcript-line'));
