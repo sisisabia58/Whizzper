@@ -62,7 +62,9 @@ def test_share_token_creation_and_html_render():
     # Verify noindex meta tag
     assert '<meta name="robots" content="noindex, nofollow"' in html_content
     # Verify container and data-total
-    assert 'id="transcript-container"' in html_content
+    assert 'id="transcript-container" class="format-body notranslate" translate="no"' in html_content
+    assert 'class="doc-title notranslate"' in html_content
+    assert 'syncVisibleFromHidden' in html_content
     assert 'data-total="2"' in html_content
     # Verify timing data attributes and inner spoken text
     assert 'data-index="0"' in html_content
@@ -75,19 +77,21 @@ def test_share_token_creation_and_html_render():
     assert 'class="segment-time notranslate"' in html_content
     assert '00:00:00,000 --> 00:00:02,500' in html_content
 
-    # TurboScribe-style: translate=yes, hidden mirror inside download btn, no scroll
+    # Single-block hidden mirror: one translate=yes pre + JSON metadata
     assert 'translate="yes"' in html_content
     assert 'id="download-source"' in html_content
-    assert 'class="download-source' in html_content
+    assert 'id="segment-meta"' in html_content
+    assert '<pre id="download-source"' in html_content
     assert 'font-size: 0.01px' in html_content
     assert 'download-source-wrap' in html_content
     assert 'class="btn-label notranslate"' in html_content
     assert 'download-source-wrap notranslate' not in html_content
-    assert 'id="download-source" class="download-source format-body notranslate"' not in html_content
     assert 'height: 0' not in html_content
     assert 'scrollIntoView' not in html_content
     assert 'sweepTranslation' not in html_content
-    assert "hidden.style.fontSize = '1px'" in html_content
+    assert "pre.style.fontSize = '1px'" in html_content
+    assert 'parseSegmentsFromPre' in html_content
+    assert 'syncVisibleFromHidden' in html_content
     assert "document.addEventListener('DOMContentLoaded'" in html_content
 
     # 4. Revoke token
