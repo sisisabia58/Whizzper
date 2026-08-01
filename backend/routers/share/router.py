@@ -259,6 +259,7 @@ def render_share_page(token: str, db: Session = Depends(get_db_session)):
       position: relative;
     }}
     .top-download-btn:hover {{ background: #e2e8f0; color: #0f172a; }}
+    .btn-label {{ position: relative; z-index: 1; }}
     .download-source-wrap {{
       position: absolute;
       top: 0;
@@ -338,9 +339,9 @@ def render_share_page(token: str, db: Session = Depends(get_db_session)):
         <h1 class="doc-title">{title}</h1>
         <div class="doc-date notranslate" translate="no">{date_str}</div>
       </div>
-      <button id="main-download-btn" type="button" class="top-download-btn notranslate" translate="no" onclick="triggerActiveDownload(event)">
-        📥 Download SRT
-        <div class="download-source-wrap notranslate" translate="no" aria-hidden="true">
+      <button id="main-download-btn" type="button" class="top-download-btn" onclick="triggerActiveDownload(event)">
+        <span class="btn-label notranslate" translate="no">📥 Download SRT</span>
+        <div class="download-source-wrap">
           <div id="download-source" class="download-source format-body" data-total="{total_count}">
 {download_source_html}
           </div>
@@ -399,8 +400,9 @@ def render_share_page(token: str, db: Session = Depends(get_db_session)):
       if (activeBtn) activeBtn.classList.add('active');
 
       const mainDlBtn = document.getElementById('main-download-btn');
-      if (mainDlBtn) {{
-        mainDlBtn.innerText = `📥 Download ${{mode.toUpperCase()}}`;
+      const btnLabel = mainDlBtn ? mainDlBtn.querySelector('.btn-label') : null;
+      if (btnLabel) {{
+        btnLabel.innerText = `📥 Download ${{mode.toUpperCase()}}`;
       }}
 
       const blocks = document.querySelectorAll('#transcript-container .segment-block');

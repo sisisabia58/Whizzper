@@ -81,6 +81,9 @@ def test_share_token_creation_and_html_render():
     assert 'class="download-source' in html_content
     assert 'font-size: 0.01px' in html_content
     assert 'download-source-wrap' in html_content
+    assert 'class="btn-label notranslate"' in html_content
+    assert 'download-source-wrap notranslate' not in html_content
+    assert 'id="download-source" class="download-source format-body notranslate"' not in html_content
     assert 'height: 0' not in html_content
     assert 'scrollIntoView' not in html_content
     assert 'sweepTranslation' not in html_content
