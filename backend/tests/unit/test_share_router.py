@@ -70,6 +70,23 @@ def test_share_token_creation_and_html_render():
     assert 'data-end="2.5"' in html_content
     assert 'Hello world' in html_content
 
+    # TurboScribe-style flat blocks with notranslate timestamps
+    assert 'class="segment-index notranslate"' in html_content
+    assert 'class="segment-time notranslate"' in html_content
+    assert '00:00:00,000 --> 00:00:02,500' in html_content
+
+    # No visible scroll sweep during download
+    assert 'scrollIntoView' not in html_content
+    assert 'Finalizing translation' not in html_content
+
+    # Translation readiness UI and DOMContentLoaded init
+    assert 'id="translation-status"' in html_content
+    assert 'updateTranslationStatusUI' in html_content
+    assert "document.addEventListener('DOMContentLoaded'" in html_content
+    assert 'switchMode(\'srt\')' in html_content
+    assert 'finalizeUntranslatedLines' in html_content
+    assert 'nudgeElementIntoViewport' in html_content
+
     # 4. Revoke token
     del_resp = client.delete(f"/api/transcripts/test-task-share-123/share/{token}")
     assert del_resp.status_code == 200

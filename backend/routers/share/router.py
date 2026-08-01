@@ -14,6 +14,27 @@ from backend.db.share.models import TranscriptShareToken, generate_share_token
 
 share_router = APIRouter(tags=["Transcript Share"])
 
+
+def _pad(num: int, length: int = 2) -> str:
+    return str(num).zfill(length)
+
+
+def format_srt_timestamp(seconds: float) -> str:
+    hrs = int(seconds // 3600)
+    mins = int((seconds % 3600) // 60)
+    secs = int(seconds % 60)
+    ms = int(round((seconds % 1) * 1000))
+    return f"{_pad(hrs)}:{_pad(mins)}:{_pad(secs)},{_pad(ms, 3)}"
+
+
+def format_vtt_timestamp(seconds: float) -> str:
+    hrs = int(seconds // 3600)
+    mins = int((seconds % 3600) // 60)
+    secs = int(seconds % 60)
+    ms = int(round((seconds % 1) * 1000))
+    return f"{_pad(hrs)}:{_pad(mins)}:{_pad(secs)}.{_pad(ms, 3)}"
+
+
 def find_task_by_id_or_uuid(db: Session, identifier: str) -> Optional[Task]:
     task = db.scalars(select(Task).where(Task.uuid == identifier)).first()
     if not task and identifier.isdigit():
@@ -131,9 +152,11 @@ def render_share_page(token: str, db: Session = Depends(get_db_session)):
         end_val = seg.get("end", 0.0)
         text_val = (seg.get("text") or "").strip()
         escaped_orig = html.escape(text_val)
+        srt_time = f"{format_srt_timestamp(start_val)} --> {format_srt_timestamp(end_val)}"
         lines_html.append(
             f'<div class="segment-block" data-idx="{idx}">'
-            f'<div class="segment-meta notranslate" translate="no">{idx + 1}<br>{start_val:.3f} --> {end_val:.3f}</div>'
+            f'<div class="segment-index notranslate" translate="no">{idx + 1}</div>'
+            f'<div class="segment-time notranslate" translate="no">{srt_time}</div>'
             f'<div class="transcript-line" data-index="{idx}" data-start="{start_val}" data-end="{end_val}" data-original="{escaped_orig}">{text_val}</div>'
             f'</div>'
         )
@@ -214,7 +237,8 @@ def render_share_page(token: str, db: Session = Depends(get_db_session)):
       font-size: 0.9rem;
     }}
     .segment-block {{ margin-bottom: 20px; }}
-    .segment-meta {{ color: #64748b; font-size: 0.8rem; margin-bottom: 4px; white-space: pre-line; }}
+    .segment-index {{ color: #64748b; font-size: 0.8rem; margin-bottom: 2px; }}
+    .segment-time {{ color: #64748b; font-size: 0.8rem; margin-bottom: 4px; }}
     .transcript-line {{ color: #0f172a; word-break: break-word; }}
 
     .sticky-bar {{
@@ -229,9 +253,18 @@ def render_share_page(token: str, db: Session = Depends(get_db_session)):
       align-items: center;
       justify-content: center;
       gap: 12px;
+      flex-wrap: wrap;
       z-index: 9999;
       box-shadow: 0 -4px 12px rgba(0,0,0,0.05);
     }}
+    .translation-status {{
+      font-size: 0.8rem;
+      color: #64748b;
+      font-weight: 600;
+      min-width: 140px;
+      text-align: center;
+    }}
+    .translation-status.ready {{ color: #059669; }}
     .mode-btn {{
       background: #f1f5f9;
       color: #475569;
@@ -277,6 +310,7 @@ def render_share_page(token: str, db: Session = Depends(get_db_session)):
   </div>
 
   <div class="sticky-bar notranslate" translate="no">
+    <span id="translation-status" class="translation-status">Translating…</span>
     <button id="btn-mode-txt" type="button" class="mode-btn notranslate" translate="no" onclick="switchMode('txt')">📄 Translate TXT</button>
     <button id="btn-mode-srt" type="button" class="mode-btn active notranslate" translate="no" onclick="switchMode('srt')">🎬 Translate SRT</button>
     <button id="btn-mode-vtt" type="button" class="mode-btn notranslate" translate="no" onclick="switchMode('vtt')">🎬 Translate VTT</button>
@@ -326,22 +360,28 @@ def render_share_page(token: str, db: Session = Depends(get_db_session)):
 
       const blocks = document.querySelectorAll('.segment-block');
       blocks.forEach((block) => {{
-        const metaEl = block.querySelector('.segment-meta');
+        const indexEl = block.querySelector('.segment-index');
+        const timeEl = block.querySelector('.segment-time');
         const lineEl = block.querySelector('.transcript-line');
-        if (!metaEl || !lineEl) return;
+        if (!indexEl || !timeEl || !lineEl) return;
 
         const idx = parseInt(lineEl.getAttribute('data-index') || '0', 10);
         const start = parseFloat(lineEl.getAttribute('data-start') || '0');
         const end = parseFloat(lineEl.getAttribute('data-end') || '0');
 
+        indexEl.innerText = String(idx + 1);
+
         if (mode === 'txt') {{
-          metaEl.style.display = 'none';
+          indexEl.style.display = 'none';
+          timeEl.style.display = 'none';
         }} else if (mode === 'srt') {{
-          metaEl.style.display = 'block';
-          metaEl.innerHTML = `${{idx + 1}}<br>${{formatTime(start, false)}} --> ${{formatTime(end, false)}}`;
+          indexEl.style.display = 'block';
+          timeEl.style.display = 'block';
+          timeEl.innerText = `${{formatTime(start, false)}} --> ${{formatTime(end, false)}}`;
         }} else if (mode === 'vtt') {{
-          metaEl.style.display = 'block';
-          metaEl.innerHTML = `${{idx + 1}}<br>${{formatTime(start, true)}} --> ${{formatTime(end, true)}}`;
+          indexEl.style.display = 'block';
+          timeEl.style.display = 'block';
+          timeEl.innerText = `${{formatTime(start, true)}} --> ${{formatTime(end, true)}}`;
         }}
       }});
     }}
@@ -361,6 +401,63 @@ def render_share_page(token: str, db: Session = Depends(get_db_session)):
         }}
       }}
       return {{ total: lineElements.length, translatedCount, untranslatedElements }};
+    }}
+
+    function isTranslationReady(status) {{
+      if (status.total === 0) return true;
+      if (status.translatedCount === status.total) return true;
+      // Same-language edge case: GT leaves text unchanged but all lines have content
+      if (status.translatedCount === 0) {{
+        const lineElements = document.querySelectorAll('.transcript-line');
+        for (const el of lineElements) {{
+          const current = (el.innerText || '').trim();
+          const orig = (el.getAttribute('data-original') || '').trim();
+          if (!current || !orig) return false;
+        }}
+        return true;
+      }}
+      return false;
+    }}
+
+    function updateTranslationStatusUI() {{
+      const statusEl = document.getElementById('translation-status');
+      if (!statusEl) return;
+      const status = getTranslationStatus();
+      if (isTranslationReady(status)) {{
+        statusEl.innerText = 'Ready to download';
+        statusEl.classList.add('ready');
+      }} else {{
+        statusEl.innerText = `Translating… ${{status.translatedCount}}/${{status.total}} lines`;
+        statusEl.classList.remove('ready');
+      }}
+    }}
+
+    async function nudgeElementIntoViewport(el) {{
+      const savedStyle = el.getAttribute('style') || '';
+      el.style.cssText = savedStyle + ';position:fixed;top:0;left:0;opacity:0;pointer-events:none;z-index:-1;width:auto;height:auto;';
+      await new Promise(r => setTimeout(r, 300));
+      if (savedStyle) {{
+        el.setAttribute('style', savedStyle);
+      }} else {{
+        el.removeAttribute('style');
+      }}
+    }}
+
+    async function finalizeUntranslatedLines() {{
+      const maxAttempts = 30;
+      const deadline = Date.now() + 10000;
+      let attempts = 0;
+
+      while (attempts < maxAttempts && Date.now() < deadline) {{
+        const status = getTranslationStatus();
+        if (isTranslationReady(status)) return status;
+        if (status.untranslatedElements.length === 0) return status;
+
+        await nudgeElementIntoViewport(status.untranslatedElements[0]);
+        attempts++;
+      }}
+
+      return getTranslationStatus();
     }}
 
     function extractDOMTranscript() {{
@@ -408,35 +505,22 @@ def render_share_page(token: str, db: Session = Depends(get_db_session)):
 
       const errBox = document.getElementById('error-message');
       errBox.style.display = 'none';
+      errBox.style.background = '#fef2f2';
+      errBox.style.color = '#991b1b';
+      errBox.style.borderColor = 'transparent';
 
       let status = getTranslationStatus();
 
-      // Smart targeted sweep only if some lines were skipped during fast scrolling
-      if (status.untranslatedElements.length > 0 && status.translatedCount > 0) {{
+      if (!isTranslationReady(status) && status.untranslatedElements.length > 0 && status.translatedCount > 0) {{
+        status = await finalizeUntranslatedLines();
+      }}
+
+      if (!isTranslationReady(status) && status.translatedCount > 0 && status.translatedCount < status.total) {{
+        errBox.innerText = `Note: ${{status.translatedCount}}/${{status.total}} lines translated. Download may include untranslated text.`;
+        errBox.style.background = '#fffbeb';
+        errBox.style.color = '#92400e';
+        errBox.style.borderColor = '#fcd34d';
         errBox.style.display = 'block';
-        errBox.style.background = '#e0f2fe';
-        errBox.style.color = '#0369a1';
-        errBox.style.borderColor = '#7dd3fc';
-
-        const originalScrollY = window.scrollY;
-        let attempts = 0;
-
-        while (status.untranslatedElements.length > 0 && attempts < 12) {{
-          attempts++;
-          errBox.innerText = `Finalizing translation... (${{status.translatedCount}}/${{status.total}} lines completed)`;
-
-          const targetEl = status.untranslatedElements[0];
-          targetEl.scrollIntoView({{ behavior: 'smooth', block: 'center' }});
-
-          await new Promise(r => setTimeout(r, 350));
-          status = getTranslationStatus();
-        }}
-
-        window.scrollTo({{ top: originalScrollY, behavior: 'smooth' }});
-        errBox.style.display = 'none';
-        errBox.style.background = '#fef2f2';
-        errBox.style.color = '#991b1b';
-        errBox.style.borderColor = 'transparent';
       }}
 
       const res = extractDOMTranscript();
@@ -476,6 +560,12 @@ def render_share_page(token: str, db: Session = Depends(get_db_session)):
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     }}
+
+    document.addEventListener('DOMContentLoaded', () => {{
+      switchMode('srt');
+      updateTranslationStatusUI();
+      setInterval(updateTranslationStatusUI, 1000);
+    }});
   </script>
 </body>
 </html>"""
