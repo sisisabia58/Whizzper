@@ -1,7 +1,7 @@
 /**
  * Resolves the origin used for public share/translate URLs.
- * Google Translate's `.translate.goog` proxy requires a publicly reachable hostname;
- * `localhost` always fails because Google's servers cannot fetch your machine.
+ * Google Translate requires a publicly reachable hostname for the share page URL
+ * passed to translate.google.com/translate; localhost always fails.
  */
 let cachedPublicAppUrl: string | null = null;
 
