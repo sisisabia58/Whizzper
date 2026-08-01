@@ -35,7 +35,7 @@ def format_vtt_timestamp(seconds: float) -> str:
     return f"{_pad(hrs)}:{_pad(mins)}:{_pad(secs)}.{_pad(ms, 3)}"
 
 
-def render_segment_rows(segments: list) -> str:
+def render_segment_rows(segments: list, flat: bool = False) -> str:
     """TurboScribe-style rows: index + timestamp (notranslate) + text (translate=yes)."""
     rows = []
     for idx, seg in enumerate(segments):
@@ -44,15 +44,40 @@ def render_segment_rows(segments: list) -> str:
         text_val = (seg.get("text") or "").strip()
         escaped_orig = html.escape(text_val)
         srt_time = f"{format_srt_timestamp(start_val)} --> {format_srt_timestamp(end_val)}"
-        rows.append(
-            f'<div class="segment-block">'
-            f'<div class="segment-index notranslate" translate="no">{idx + 1}</div>'
-            f'<div class="segment-time notranslate" translate="no">{srt_time}</div>'
+        index_div = f'<div class="segment-index notranslate" translate="no">{idx + 1}</div>'
+        time_div = f'<div class="segment-time notranslate" translate="no">{srt_time}</div>'
+        line_div = (
             f'<div class="transcript-line" translate="yes" data-index="{idx}" data-start="{start_val}" '
             f'data-end="{end_val}" data-original="{escaped_orig}">{text_val}</div>'
-            f'</div>'
         )
+        if flat:
+            rows.append(index_div)
+            rows.append(time_div)
+            rows.append(line_div)
+        else:
+            rows.append(
+                f'<div class="segment-block">{index_div}{time_div}{line_div}</div>'
+            )
     return "\n".join(rows)
+
+
+def render_download_source_rows(segments: list) -> str:
+    """Flat SRT-style rows for hidden download mirror (matches TurboScribe)."""
+    parts = []
+    for idx, seg in enumerate(segments):
+        start_val = seg.get("start", 0.0)
+        end_val = seg.get("end", 0.0)
+        text_val = (seg.get("text") or "").strip()
+        escaped_orig = html.escape(text_val)
+        srt_time = f"{format_srt_timestamp(start_val)} --> {format_srt_timestamp(end_val)}"
+        parts.append(f'<div class="segment-index notranslate" translate="no">{idx + 1}</div>')
+        parts.append(f'<div class="segment-time notranslate" translate="no">{srt_time}</div>')
+        parts.append(
+            f'<div class="transcript-line" translate="yes" data-index="{idx}" data-start="{start_val}" '
+            f'data-end="{end_val}" data-original="{escaped_orig}">{text_val}</div>'
+        )
+        parts.append("<br>")
+    return "\n".join(parts)
 
 
 def find_task_by_id_or_uuid(db: Session, identifier: str) -> Optional[Task]:
@@ -167,6 +192,7 @@ def render_share_page(token: str, db: Session = Depends(get_db_session)):
     date_str = task.created_at.strftime("%b %d, %Y, %I:%M %p") if hasattr(task, 'created_at') and task.created_at else ""
 
     lines_html = render_segment_rows(segments)
+    download_source_html = render_download_source_rows(segments)
     lines_rendered = lines_html
     base_stem_json = json.dumps(base_stem)
 
@@ -230,8 +256,25 @@ def render_share_page(token: str, db: Session = Depends(get_db_session)):
       align-items: center;
       gap: 6px;
       transition: all 0.2s;
+      position: relative;
     }}
     .top-download-btn:hover {{ background: #e2e8f0; color: #0f172a; }}
+    .download-source-wrap {{
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      max-width: 760px;
+      pointer-events: none;
+      overflow: visible;
+    }}
+    .download-source {{
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.01px;
+      color: transparent;
+      width: 100%;
+      line-height: 1.4;
+    }}
     
     #transcript-container {{
       background: #fafafa;
@@ -246,17 +289,6 @@ def render_share_page(token: str, db: Session = Depends(get_db_session)):
     .segment-index {{ color: #64748b; font-size: 0.8rem; margin-bottom: 2px; }}
     .segment-time {{ color: #64748b; font-size: 0.8rem; margin-bottom: 4px; }}
     .transcript-line {{ color: #0f172a; word-break: break-word; }}
-    .download-source {{
-      font-size: 0.01px;
-      color: transparent;
-      position: absolute;
-      left: 0;
-      top: 0;
-      width: 1px;
-      height: 0;
-      overflow: hidden;
-      pointer-events: none;
-    }}
 
     .sticky-bar {{
       position: fixed;
@@ -308,17 +340,17 @@ def render_share_page(token: str, db: Session = Depends(get_db_session)):
       </div>
       <button id="main-download-btn" type="button" class="top-download-btn notranslate" translate="no" onclick="triggerActiveDownload(event)">
         📥 Download SRT
+        <div class="download-source-wrap notranslate" translate="no" aria-hidden="true">
+          <div id="download-source" class="download-source format-body" data-total="{total_count}">
+{download_source_html}
+          </div>
+        </div>
       </button>
     </div>
 
     <div id="error-message" class="error-banner"></div>
 
     <div id="transcript-container" class="format-body" data-total="{total_count}">
-{lines_rendered}
-    </div>
-
-    <!-- TurboScribe-style hidden mirror: GT translates all translate=yes nodes in DOM -->
-    <div id="download-source" class="download-source format-body notranslate" translate="no" data-total="{total_count}" aria-hidden="true">
 {lines_rendered}
     </div>
   </div>
@@ -371,7 +403,7 @@ def render_share_page(token: str, db: Session = Depends(get_db_session)):
         mainDlBtn.innerText = `📥 Download ${{mode.toUpperCase()}}`;
       }}
 
-      const blocks = document.querySelectorAll('.segment-block');
+      const blocks = document.querySelectorAll('#transcript-container .segment-block');
       blocks.forEach((block) => {{
         const indexEl = block.querySelector('.segment-index');
         const timeEl = block.querySelector('.segment-time');
@@ -399,30 +431,63 @@ def render_share_page(token: str, db: Session = Depends(get_db_session)):
       }});
     }}
 
-    function extractDOMTranscript() {{
-      // Read from hidden download mirror (TurboScribe pattern) — fully in DOM for GT
-      const container = document.getElementById('download-source') || document.getElementById('transcript-container');
-      if (!container) return {{ segments: [], error: "Transcript container missing" }};
+    function countTranslatedLines(container) {{
+      if (!container) return 0;
+      let count = 0;
+      container.querySelectorAll('.transcript-line').forEach((el) => {{
+        const orig = (el.getAttribute('data-original') || '').trim();
+        const cur = (el.innerText || '').trim();
+        if (cur && orig && cur !== orig) count++;
+      }});
+      return count;
+    }}
+
+    function extractFromContainer(container) {{
       const expectedTotal = parseInt(container.getAttribute('data-total') || '0', 10);
       const lineElements = Array.from(container.querySelectorAll('.transcript-line'));
-      
       const segments = [];
       for (const el of lineElements) {{
         const idx = parseInt(el.getAttribute('data-index') || '-1', 10);
         const start = parseFloat(el.getAttribute('data-start') || '0');
         const end = parseFloat(el.getAttribute('data-end') || '0');
         const text = el.innerText ? el.innerText.trim() : '';
-
         if (isNaN(idx) || isNaN(start) || isNaN(end) || !text) continue;
         segments.push({{ index: idx, start: start, end: end, text: text }});
       }}
-
       segments.sort((a, b) => a.index - b.index);
-
       if (segments.length !== expectedTotal) {{
-        return {{ segments: segments, error: `Line count mismatch: expected ${{expectedTotal}} segments but extracted ${{segments.length}}` }};
+        return {{ segments, error: `Line count mismatch: expected ${{expectedTotal}} segments but extracted ${{segments.length}}` }};
       }}
-      return {{ segments: segments }};
+      return {{ segments }};
+    }}
+
+    function extractDOMTranscript() {{
+      const hidden = document.getElementById('download-source');
+      const visible = document.getElementById('transcript-container');
+      if (!hidden && !visible) return {{ segments: [], error: "Transcript container missing" }};
+
+      let savedFontSize = '';
+      if (hidden) {{
+        savedFontSize = hidden.style.fontSize;
+        hidden.style.fontSize = '1px';
+      }}
+
+      let container = hidden;
+      if (hidden && visible) {{
+        const hiddenScore = countTranslatedLines(hidden);
+        const visibleScore = countTranslatedLines(visible);
+        if (visibleScore > hiddenScore) container = visible;
+      }} else if (!hidden) {{
+        container = visible;
+      }}
+
+      const result = extractFromContainer(container);
+
+      if (hidden) {{
+        hidden.style.fontSize = savedFontSize || '0.01px';
+      }}
+
+      return result;
     }}
 
     function buildSRT(segments) {{

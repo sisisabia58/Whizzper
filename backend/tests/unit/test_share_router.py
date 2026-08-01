@@ -75,18 +75,17 @@ def test_share_token_creation_and_html_render():
     assert 'class="segment-time notranslate"' in html_content
     assert '00:00:00,000 --> 00:00:02,500' in html_content
 
-    # TurboScribe-style: translate=yes on text, hidden download mirror, no scroll sweep
+    # TurboScribe-style: translate=yes, hidden mirror inside download btn, no scroll
     assert 'translate="yes"' in html_content
     assert 'id="download-source"' in html_content
     assert 'class="download-source' in html_content
     assert 'font-size: 0.01px' in html_content
+    assert 'download-source-wrap' in html_content
+    assert 'height: 0' not in html_content
     assert 'scrollIntoView' not in html_content
     assert 'sweepTranslation' not in html_content
-    assert 'translation-overlay' not in html_content
-    assert 'getElementById(\'download-source\')' in html_content
+    assert "hidden.style.fontSize = '1px'" in html_content
     assert "document.addEventListener('DOMContentLoaded'" in html_content
-    assert 'switchMode(\'srt\')' in html_content
-    assert 'function triggerActiveDownload' in html_content
 
     # 4. Revoke token
     del_resp = client.delete(f"/api/transcripts/test-task-share-123/share/{token}")
