@@ -11,14 +11,14 @@ function testGenerateProxyUrl() {
   const proxyUrl = generateGoogleTranslateProxyUrl(publicUrl, 'en', 'id');
   assertEqual(
     proxyUrl,
-    'https://translate.google.com/translate?sl=en&tl=id&u=' + encodeURIComponent(publicUrl)
+    'https://whizzper-app.translate.goog/transcripts/share/st_12345?_x_tr_sl=en&_x_tr_tl=id&_x_tr_hl=en-US'
   );
 
   const railwayUrl = 'https://web-production-d2649.up.railway.app/transcripts/share/st_12345';
   const railwayProxyUrl = generateGoogleTranslateProxyUrl(railwayUrl, 'auto', 'en');
   assertEqual(
     railwayProxyUrl,
-    'https://translate.google.com/translate?sl=auto&tl=en&u=' + encodeURIComponent(railwayUrl)
+    'https://web--production--d2649-up-railway-app.translate.goog/transcripts/share/st_12345?_x_tr_sl=auto&_x_tr_tl=en&_x_tr_hl=en-US'
   );
 
   const localUrl = 'http://localhost:8000/transcripts/share/st_12345';
