@@ -13,6 +13,7 @@ from modules.whisper.data_classes import *
 from modules.utils.paths import BACKEND_CACHE_DIR
 from modules.whisper.faster_whisper_inference import FasterWhisperInference
 from modules.whisper.base_transcription_pipeline import BaseTranscriptionPipeline
+from backend.common.progress import NO_OP_PROGRESS
 from backend.common.audio import read_audio
 from backend.common.models import QueueResponse
 from backend.common.config_loader import load_server_config
@@ -137,7 +138,7 @@ def run_transcription(
             if not is_modal or not modal_pool:
                 segments, elapsed_time = get_pipeline().run(
                     audio,
-                    None,
+                    NO_OP_PROGRESS,
                     "SRT",
                     False,
                     progress_callback,
@@ -152,7 +153,7 @@ def run_transcription(
                             try:
                                 segments, elapsed_time = get_pipeline(endpoint_url=ep).run(
                                     audio,
-                                    None,
+                                    NO_OP_PROGRESS,
                                     "SRT",
                                     False,
                                     None,
@@ -419,7 +420,7 @@ def run_batch_dispatcher(batch_id: str, selected_ids: list, task_params: dict):
             if not is_modal or not modal_pool:
                 segments, elapsed_time = get_pipeline().run(
                     audio,
-                    None,
+                    NO_OP_PROGRESS,
                     "SRT",
                     False,
                     progress_callback,
@@ -434,7 +435,7 @@ def run_batch_dispatcher(batch_id: str, selected_ids: list, task_params: dict):
                             try:
                                 segments, elapsed_time = get_pipeline(endpoint_url=ep).run(
                                     audio,
-                                    None,
+                                    NO_OP_PROGRESS,
                                     "SRT",
                                     False,
                                     None,

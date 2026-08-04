@@ -13,6 +13,7 @@ import os
 from modules.whisper.data_classes import *
 from modules.uvr.music_separator import MusicSeparator
 from modules.utils.paths import BACKEND_CACHE_DIR
+from backend.common.progress import NO_OP_PROGRESS
 from backend.common.audio import read_audio
 from backend.common.models import QueueResponse
 from backend.common.config_loader import load_server_config
@@ -61,7 +62,7 @@ def run_bgm_separation(
         device=params.uvr_device,
         segment_size=params.segment_size,
         save_file=True,
-        progress=None
+        progress=NO_OP_PROGRESS
     )
     instrumental_path, vocal_path = filepaths
     elapsed_time = (datetime.utcnow() - start_time).total_seconds()
