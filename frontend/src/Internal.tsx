@@ -15,9 +15,12 @@ export function Internal() {
   const [query, setQuery] = useState('');
   const [transcribeOpen, setTranscribeOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [sseConnected, setSseConnected] = useState(true);
 
   const loadData = async (append = false) => {
     try {
+      setLoadError(null);
       const currentOffset = append ? transcriptsList.length : 0;
       const { tasks, total } = await fetchAllTasks(PAGE_LIMIT, currentOffset);
       if (append) {
@@ -32,6 +35,7 @@ export function Internal() {
       setTotalTasks(total);
     } catch (e) {
       console.error("Error loading task data:", e);
+      setLoadError(e instanceof Error ? e.message : "Failed to load jobs");
     } finally {
       setIsLoading(false);
     }
@@ -42,45 +46,73 @@ export function Internal() {
   }, []);
 
   useEffect(() => {
-    const eventSource = new EventSource('/api/task/stream');
-    
-    eventSource.onmessage = (event) => {
-      try {
-        const update = JSON.parse(event.data);
-        if (update.type === 'task_updated') {
-          setTranscriptsList((prev) => {
-            const exists = prev.some((t) => t.id === update.uuid);
-            if (!exists) {
-              fetchAllTasks(PAGE_LIMIT, 0).then(({ tasks, total }) => {
-                setTranscriptsList(tasks);
-                setTotalTasks(total);
-              }).catch((e) => console.error("Error reloading tasks on SSE update:", e));
-              return prev;
-            }
-            return prev.map((t) => {
-              if (t.id === update.uuid) {
-                let status = t.status;
-                if (update.status === 'completed') status = 'completed';
-                else if (update.status === 'failed') status = 'failed';
-                else if (update.status === 'in_progress') status = 'processing';
-                
-                return {
-                  ...t,
-                  status,
-                  progress: update.progress ? Math.round(update.progress * 100) : 0
-                };
+    let eventSource: EventSource | null = null;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let delay = 1000;
+    let cancelled = false;
+
+    const connect = () => {
+      if (cancelled) return;
+      eventSource = new EventSource('/api/task/stream');
+
+      eventSource.onopen = () => {
+        delay = 1000;
+        setSseConnected(true);
+      };
+
+      eventSource.onmessage = (event) => {
+        try {
+          const update = JSON.parse(event.data);
+          if (update.type === 'task_updated') {
+            setTranscriptsList((prev) => {
+              const exists = prev.some((t) => t.id === update.uuid);
+              if (!exists) {
+                fetchAllTasks(PAGE_LIMIT, 0).then(({ tasks, total }) => {
+                  setTranscriptsList(tasks);
+                  setTotalTasks(total);
+                }).catch((e) => console.error("Error reloading tasks on SSE update:", e));
+                return prev;
               }
-              return t;
+              return prev.map((t) => {
+                if (t.id === update.uuid) {
+                  let status = t.status;
+                  if (update.status === 'completed') status = 'completed';
+                  else if (update.status === 'failed') status = 'failed';
+                  else if (update.status === 'in_progress') status = 'processing';
+
+                  return {
+                    ...t,
+                    status,
+                    progress: update.progress ? Math.round(update.progress * 100) : 0
+                  };
+                }
+                return t;
+              });
             });
-          });
+          }
+        } catch (err) {
+          console.error("Failed to parse SSE event data:", err);
         }
-      } catch (err) {
-        console.error("Failed to parse SSE event data:", err);
-      }
+      };
+
+      eventSource.onerror = () => {
+        setSseConnected(false);
+        eventSource?.close();
+        if (!cancelled) {
+          reconnectTimer = setTimeout(() => {
+            delay = Math.min(delay * 2, 30000);
+            connect();
+          }, delay);
+        }
+      };
     };
 
+    connect();
+
     return () => {
-      eventSource.close();
+      cancelled = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      eventSource?.close();
     };
   }, []);
 
@@ -149,6 +181,28 @@ export function Internal() {
             </button>
           </div>
         </header>
+
+        {(loadError || !sseConnected) && (
+          <div className="px-4 sm:px-6 lg:px-8 pt-4" aria-live="polite">
+            {loadError && (
+              <div className="mb-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                {loadError}
+                <button
+                  type="button"
+                  onClick={() => loadData(false)}
+                  className="ml-3 font-semibold underline"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+            {!sseConnected && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                Live updates disconnected. Reconnecting…
+              </div>
+            )}
+          </div>
+        )}
 
         <main className="flex-1 px-4 sm:px-6 lg:px-8 py-8 max-w-6xl w-full mx-auto">
           {/* Heading */}

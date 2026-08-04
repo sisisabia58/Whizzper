@@ -4,7 +4,6 @@ from fastapi import (
     File,
     UploadFile,
 )
-import gradio as gr
 from fastapi import APIRouter, BackgroundTasks, Depends, Response, status
 from fastapi.responses import FileResponse
 from typing import List, Dict, Tuple
@@ -62,7 +61,7 @@ def run_bgm_separation(
         device=params.uvr_device,
         segment_size=params.segment_size,
         save_file=True,
-        progress=gr.Progress()
+        progress=None
     )
     instrumental_path, vocal_path = filepaths
     elapsed_time = (datetime.utcnow() - start_time).total_seconds()

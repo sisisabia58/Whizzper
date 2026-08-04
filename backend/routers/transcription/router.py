@@ -5,7 +5,6 @@ from fastapi import (
     File,
     UploadFile,
 )
-import gradio as gr
 from fastapi import APIRouter, BackgroundTasks, Depends, Response, status, Body
 from typing import List, Dict
 from sqlalchemy.orm import Session
@@ -138,7 +137,7 @@ def run_transcription(
             if not is_modal or not modal_pool:
                 segments, elapsed_time = get_pipeline().run(
                     audio,
-                    gr.Progress(),
+                    None,
                     "SRT",
                     False,
                     progress_callback,
@@ -153,7 +152,7 @@ def run_transcription(
                             try:
                                 segments, elapsed_time = get_pipeline(endpoint_url=ep).run(
                                     audio,
-                                    gr.Progress(),
+                                    None,
                                     "SRT",
                                     False,
                                     None,
@@ -420,7 +419,7 @@ def run_batch_dispatcher(batch_id: str, selected_ids: list, task_params: dict):
             if not is_modal or not modal_pool:
                 segments, elapsed_time = get_pipeline().run(
                     audio,
-                    gr.Progress(),
+                    None,
                     "SRT",
                     False,
                     progress_callback,
@@ -435,7 +434,7 @@ def run_batch_dispatcher(batch_id: str, selected_ids: list, task_params: dict):
                             try:
                                 segments, elapsed_time = get_pipeline(endpoint_url=ep).run(
                                     audio,
-                                    gr.Progress(),
+                                    None,
                                     "SRT",
                                     False,
                                     None,

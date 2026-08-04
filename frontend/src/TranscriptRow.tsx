@@ -83,6 +83,8 @@ export function triggerDownload(content: string, filename: string, mimeType: str
 
 export function TranscriptRow({ transcript, index, onDelete }: TranscriptRowProps) {
   const [isDeleting, setIsDeleting] = useState(false);
+  const [translateOpen, setTranslateOpen] = useState(false);
+  const [pendingTranslateUrl, setPendingTranslateUrl] = useState<string | null>(null);
 
   const handleDelete = async () => {
     if (!confirm(`Are you sure you want to permanently delete "${name}"? This will delete the database record and purge all associated audio/video files from the server.`)) return;
@@ -108,10 +110,19 @@ export function TranscriptRow({ transcript, index, onDelete }: TranscriptRowProp
         );
         return;
       }
-      openGoogleTranslateProxy(fullUrl, 'auto', 'en');
+      setPendingTranslateUrl(fullUrl);
+      setTranslateOpen(true);
     } catch (err) {
       alert("Failed to generate share link for translation: " + String(err));
     }
+  };
+
+  const handleTranslateConfirm = (sourceLang: string, targetLang: string) => {
+    if (pendingTranslateUrl) {
+      openGoogleTranslateProxy(pendingTranslateUrl, sourceLang, targetLang);
+    }
+    setTranslateOpen(false);
+    setPendingTranslateUrl(null);
   };
 
   const {
@@ -291,5 +302,14 @@ export function TranscriptRow({ transcript, index, onDelete }: TranscriptRowProp
           )}
         </button>
       </div>
+
+      <TranslateConsentModal
+        isOpen={translateOpen}
+        onClose={() => {
+          setTranslateOpen(false);
+          setPendingTranslateUrl(null);
+        }}
+        onConfirm={handleTranslateConfirm}
+      />
     </motion.div>);
 }

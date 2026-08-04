@@ -45,6 +45,8 @@ const statusStyles = {
 } as const;
 export function JobRow({ job, index }: JobRowProps) {
   const [expanded, setExpanded] = useState(false);
+  const [translateOpen, setTranslateOpen] = useState(false);
+  const [pendingTranslateUrl, setPendingTranslateUrl] = useState<string | null>(null);
   const s = jobSummary(job);
   const rowStatus = s.status;
   const StatusIcon = statusStyles[rowStatus].icon;
@@ -62,10 +64,19 @@ export function JobRow({ job, index }: JobRowProps) {
         );
         return;
       }
-      openGoogleTranslateProxy(fullUrl, 'auto', 'en');
+      setPendingTranslateUrl(fullUrl);
+      setTranslateOpen(true);
     } catch (err) {
       alert("Failed to generate share link for translation: " + String(err));
     }
+  };
+
+  const handleTranslateConfirm = (sourceLang: string, targetLang: string) => {
+    if (pendingTranslateUrl) {
+      openGoogleTranslateProxy(pendingTranslateUrl, sourceLang, targetLang);
+    }
+    setTranslateOpen(false);
+    setPendingTranslateUrl(null);
   };
 
   const downloadAllSRT = (e: React.MouseEvent) => {
@@ -333,6 +344,15 @@ export function JobRow({ job, index }: JobRowProps) {
           </motion.div>
         }
       </AnimatePresence>
+
+      <TranslateConsentModal
+        isOpen={translateOpen}
+        onClose={() => {
+          setTranslateOpen(false);
+          setPendingTranslateUrl(null);
+        }}
+        onConfirm={handleTranslateConfirm}
+      />
     </motion.div>);
 
 }

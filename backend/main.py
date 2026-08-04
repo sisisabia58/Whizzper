@@ -1,10 +1,19 @@
+import os
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+_env_path = Path(__file__).resolve().parent / "configs" / ".env"
+if _env_path.exists():
+    load_dotenv(_env_path)
+load_dotenv()
+
 import json
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Response
 from fastapi.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text, inspect
-import os
 import time
 import threading
 
@@ -18,6 +27,7 @@ from backend.common.config_loader import read_env, load_server_config
 from backend.common.cache_manager import cleanup_old_files
 from backend.common.logging import setup_json_logging
 from backend.common.observability import init_sentry, generate_latest, CONTENT_TYPE_LATEST
+from backend.common.security import cors_origins
 from modules.utils.paths import SERVER_CONFIG_PATH, BACKEND_CACHE_DIR
 
 
@@ -132,11 +142,12 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+_allowed_origins = cors_origins()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_allowed_origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "PATCH", "OPTIONS"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 

@@ -341,7 +341,7 @@ export function DriveScanPanel({
               : 'text-zinc-500 hover:text-ink'
           }`}
         >
-          Folder Link Link
+          Folder Link
         </button>
       </div>
 

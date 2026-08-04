@@ -11,6 +11,7 @@ from sqlmodel import select
 from backend.db.db_instance import get_db_session
 from backend.db.task.models import Task
 from backend.db.share.models import TranscriptShareToken, generate_share_token
+from backend.common.security import require_api_key
 
 share_router = APIRouter(tags=["Transcript Share"])
 
@@ -87,7 +88,7 @@ def find_task_by_id_or_uuid(db: Session, identifier: str) -> Optional[Task]:
         task = db.scalars(select(Task).where(Task.id == int(identifier))).first()
     return task
 
-@share_router.post("/api/transcripts/{task_uuid}/share")
+@share_router.post("/api/transcripts/{task_uuid}/share", dependencies=[Depends(require_api_key)])
 def create_share_token(
     task_uuid: str,
     expires_in_hours: Optional[int] = 72,
@@ -131,7 +132,7 @@ def create_share_token(
         "expires_at": share_token.expires_at.isoformat() if share_token.expires_at else None
     }
 
-@share_router.delete("/api/transcripts/{task_uuid}/share/{token}")
+@share_router.delete("/api/transcripts/{task_uuid}/share/{token}", dependencies=[Depends(require_api_key)])
 def revoke_share_token(task_uuid: str, token: str, db: Session = Depends(get_db_session)):
     task = find_task_by_id_or_uuid(db, task_uuid)
     target_uuid = task.uuid if task else task_uuid

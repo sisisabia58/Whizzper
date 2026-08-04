@@ -2,9 +2,9 @@ name: Fast Test Suite & Lint
 
 on:
   push:
-    branches: [ main, Improvement-v1 ]
+    branches: [ main, improvement-v4, improvement-v5 ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, improvement-v4, improvement-v5 ]
 
 jobs:
   test:
@@ -17,12 +17,35 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install dependencies
+      - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements-railway.txt
           pip install -r requirements-dev.txt
 
-      - name: Run fast unit tests
+      - name: Run backend unit tests
+        env:
+          TEST_ENV: "true"
+          DB_URL: "sqlite:///:memory:"
+          MODAL_WEB_ENDPOINT_URL: "https://mock-endpoint.modal.run"
         run: |
-          pytest -m "not slow and not postgres and not e2e" --cov=backend
+          pytest backend/tests/unit -q
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+
+      - name: Run frontend tests
+        working-directory: frontend
+        run: npm test
