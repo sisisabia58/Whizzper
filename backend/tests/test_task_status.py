@@ -11,7 +11,7 @@ def fetch_task(identifier: str):
     """Get task status"""
     client = get_client()
     response = client.get(
-        f"/task/{identifier}"
+        f"/api/task/{identifier}"
     )
     if response.status_code == 200:
         return response
@@ -22,7 +22,7 @@ def fetch_file_response(identifier: str):
     """Get task status"""
     client = get_client()
     response = client.get(
-        f"/task/file/{identifier}"
+        f"/api/task/file/{identifier}"
     )
     if response.status_code == 200:
         return response

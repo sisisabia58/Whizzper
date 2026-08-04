@@ -25,7 +25,7 @@ def test_transcription_endpoint(
     get_upload_file_instance.file.seek(0)
 
     response = client.post(
-        "/transcription",
+        "/api/transcription/",
         files={"file": (get_upload_file_instance.filename, file_content, "audio/mpeg")},
         params=pipeline_params
     )

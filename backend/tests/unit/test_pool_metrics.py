@@ -18,6 +18,7 @@ def test_health_includes_pool_status(monkeypatch):
     mock_pool._consecutive_failures = {"https://ep1.modal.run": 0, "https://ep2.modal.run": 3}
     
     monkeypatch.setattr("backend.routers.transcription.router.modal_pool", mock_pool)
+    monkeypatch.setattr("backend.main.check_redis_health", lambda: True)
     
     from backend.main import app
     client = TestClient(app)

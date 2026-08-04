@@ -28,7 +28,7 @@ def test_transcription_endpoint(
     get_upload_file_instance.file.seek(0)
 
     response = client.post(
-        "/bgm-separation",
+        "/api/bgm-separation/",
         files={"file": (get_upload_file_instance.filename, file_content, "audio/mpeg")},
         params=bgm_separation_params
     )

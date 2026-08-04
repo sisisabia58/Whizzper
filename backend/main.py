@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Response
 from fastapi.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import text
+from sqlalchemy import text, inspect
 import os
 import time
 import threading
@@ -34,37 +34,44 @@ def clean_cache_thread(ttl: int, frequency: int) -> threading.Thread:
     )
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    setup_json_logging()
-    init_sentry()
-    server_config = load_server_config()
-    read_env("DB_URL")
+def check_redis_health() -> bool:
+    redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+    try:
+        import redis
 
-    # Automatically initialize database tables
-    from sqlalchemy import inspect, text
-    from backend.db.db_instance import Base
-    import backend.db.models
-    
-    # Self-heal legacy table structure conflicts on startup
+        client = redis.from_url(redis_url, socket_connect_timeout=1)
+        client.ping()
+        return True
+    except Exception:
+        return False
+
+
+def maybe_rebuild_database(engine) -> None:
+    """Self-heal legacy schema conflicts. Destructive rebuild requires ALLOW_DB_REBUILD=true."""
     inspector = inspect(engine)
     try:
         tables = inspector.get_table_names()
         if "tasks" in tables:
             columns = [c["name"] for c in inspector.get_columns("tasks")]
             if "uuid" not in columns:
-                # Table is legacy. Rename it to legacy_tasks to avoid conflict.
                 with engine.begin() as conn:
                     drop_sql = "DROP TABLE IF EXISTS legacy_tasks CASCADE" if "postgres" in str(engine.url) else "DROP TABLE IF EXISTS legacy_tasks"
                     conn.execute(text(drop_sql))
                     conn.execute(text("ALTER TABLE tasks RENAME TO legacy_tasks"))
             else:
-                # Test query to check if the schema is fully healthy and matches the new SQLModel definitions
                 try:
                     with engine.connect() as conn:
                         conn.execute(text("SELECT uuid, status, task_params, batch_id, source_parent_id, writeback_status FROM tasks LIMIT 1"))
                         conn.execute(text("SELECT id, batch_id, status, access_mode, writeback_enabled FROM batch_jobs LIMIT 1"))
                 except Exception as schema_err:
+                    if os.environ.get("ALLOW_DB_REBUILD", "").lower() != "true":
+                        import logging
+                        logging.getLogger("uvicorn.error").warning(
+                            f"Database schema mismatch detected: {schema_err}. "
+                            "Set ALLOW_DB_REBUILD=true to rebuild tables."
+                        )
+                        return
+
                     import logging
                     logging.getLogger("uvicorn.error").warning(
                         f"Database schema mismatch detected: {schema_err}. Rebuilding database tables..."
@@ -77,6 +84,21 @@ async def lifespan(app: FastAPI):
     except Exception as db_err:
         import logging
         logging.getLogger("uvicorn.error").warning(f"Database self-healing warning: {db_err}")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    setup_json_logging()
+    init_sentry()
+    server_config = load_server_config()
+    read_env("DB_URL")
+
+    # Automatically initialize database tables
+    from backend.db.db_instance import Base
+    import backend.db.models
+    
+    # Self-heal legacy table structure conflicts on startup
+    maybe_rebuild_database(engine)
 
     Base.metadata.create_all(bind=engine)
 
@@ -132,7 +154,7 @@ app.include_router(share_router)
 @app.get("/health")
 def health_check():
     db_ok = True
-    redis_ok = True
+    redis_ok = check_redis_health()
     try:
         with engine.connect() as conn:
             conn.execute(text("SELECT 1") if hasattr(text, "__call__") else "SELECT 1")

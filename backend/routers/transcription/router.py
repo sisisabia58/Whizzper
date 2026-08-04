@@ -53,7 +53,7 @@ def create_progress_callback(identifier: str):
             update_data={
                 "uuid": identifier,
                 "status": TaskStatus.IN_PROGRESS,
-                "progress": round(progress_value, 2),
+                "progress": float(round(progress_value, 2)),
                 "updated_at": datetime.utcnow()
             },
         )
@@ -134,62 +134,74 @@ def run_transcription(
 
     progress_callback = create_progress_callback(identifier)
     try:
-        if not is_modal or not modal_pool:
-            segments, elapsed_time = get_pipeline().run(
-                audio,
-                gr.Progress(),
-                "SRT",
-                False,
-                progress_callback,
-                *params.to_list()
-            )
-        else:
-            last_err = None
-            success = False
-            for attempt in range(max_retries_pool + 1):
-                try:
-                    with modal_pool.acquire() as ep:
-                        try:
-                            segments, elapsed_time = get_pipeline(endpoint_url=ep).run(
-                                audio,
-                                gr.Progress(),
-                                "SRT",
-                                False,
-                                None,
-                                *params.to_list()
-                            )
-                            modal_pool.record_success(ep)
-                            success = True
-                            break
-                        except Exception as trans_err:
-                            modal_pool.record_failure(ep)
-                            raise trans_err
-                except Exception as e:
-                    last_err = e
-                    if "capacity limit exceeded" in str(e) or "No healthy endpoints" in str(e):
-                        import time
-                        time.sleep(0.5)
-            if not success:
-                raise last_err or RuntimeError("Modal execution failed on all retries")
-    finally:
-        if progress_thread:
-            stop_progress_event.set()
-            progress_thread.join(timeout=1.0)
+        try:
+            if not is_modal or not modal_pool:
+                segments, elapsed_time = get_pipeline().run(
+                    audio,
+                    gr.Progress(),
+                    "SRT",
+                    False,
+                    progress_callback,
+                    *params.to_list()
+                )
+            else:
+                last_err = None
+                success = False
+                for attempt in range(max_retries_pool + 1):
+                    try:
+                        with modal_pool.acquire() as ep:
+                            try:
+                                segments, elapsed_time = get_pipeline(endpoint_url=ep).run(
+                                    audio,
+                                    gr.Progress(),
+                                    "SRT",
+                                    False,
+                                    None,
+                                    *params.to_list()
+                                )
+                                modal_pool.record_success(ep)
+                                success = True
+                                break
+                            except Exception as trans_err:
+                                modal_pool.record_failure(ep)
+                                raise trans_err
+                    except Exception as e:
+                        last_err = e
+                        if "capacity limit exceeded" in str(e) or "No healthy endpoints" in str(e):
+                            import time
+                            time.sleep(0.5)
+                if not success:
+                    raise last_err or RuntimeError("Modal execution failed on all retries")
+        finally:
+            if progress_thread:
+                stop_progress_event.set()
+                progress_thread.join(timeout=1.0)
 
-    segments = [seg.model_dump() for seg in segments]
+        segments = [seg.model_dump() for seg in segments]
 
-    update_task_status_in_db(
-        identifier=identifier,
-        update_data={
-            "uuid": identifier,
-            "status": TaskStatus.COMPLETED,
-            "result": segments,
-            "updated_at": datetime.utcnow(),
-            "duration": elapsed_time,
-            "progress": 1.0,
-        },
-    )
-    return segments
+        update_task_status_in_db(
+            identifier=identifier,
+            update_data={
+                "uuid": identifier,
+                "status": TaskStatus.COMPLETED,
+                "result": segments,
+                "updated_at": datetime.utcnow(),
+                "duration": elapsed_time,
+                "progress": 1.0,
+            },
+        )
+        return segments
+    except Exception as err:
+        update_task_status_in_db(
+            identifier=identifier,
+            update_data={
+                "uuid": identifier,
+                "status": TaskStatus.FAILED,
+                "error": str(err),
+                "updated_at": datetime.utcnow(),
+            },
+        )
+        raise
 
 
 @transcription_router.post(
