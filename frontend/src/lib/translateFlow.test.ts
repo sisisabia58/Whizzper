@@ -1,33 +1,24 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import {
-  DEFAULT_TRANSLATE_SOURCE_LANG,
-  DEFAULT_TRANSLATE_TARGET_LANG,
-  openTranslateForShareUrl,
-} from './translateFlow';
+import { DEFAULT_TRANSLATE_SOURCE_LANG, openTranslateForShareUrl } from './translateFlow';
 
 describe('openTranslateForShareUrl', () => {
   beforeEach(() => {
-    vi.stubGlobal('window', {
-      open: vi.fn(() => null),
-      location: { href: '' },
-    });
+    vi.stubGlobal('window', { open: vi.fn() });
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
   });
 
-  it('opens Google Translate directly with auto/en defaults', () => {
+  it('opens translate.google.com directly with auto source and no fixed target', () => {
     const url = 'https://example.com/transcripts/share/st_abc';
     openTranslateForShareUrl(url);
 
     expect(DEFAULT_TRANSLATE_SOURCE_LANG).toBe('auto');
-    expect(DEFAULT_TRANSLATE_TARGET_LANG).toBe('en');
-    expect(window.open).toHaveBeenCalled();
-    expect(
-      (window.open as ReturnType<typeof vi.fn>).mock.calls.some((call) =>
-        String(call[0]).includes('translate'),
-      ),
-    ).toBe(true);
+    expect(window.open).toHaveBeenCalledWith(
+      `https://translate.google.com/?sl=auto&u=${encodeURIComponent(url)}`,
+      '_blank',
+      'noopener,noreferrer',
+    );
   });
 });
