@@ -5,7 +5,7 @@ describe('generateGoogleTranslateProxyUrl', () => {
   it('builds translate.goog URLs for public domains', () => {
     const publicUrl = 'https://whizzper.app/transcripts/share/st_12345';
     expect(generateGoogleTranslateProxyUrl(publicUrl, 'en', 'id')).toBe(
-      'https://whizzper-app.translate.goog/transcripts/share/st_12345?_x_tr_sl=en&_x_tr_tl=id&_x_tr_hl=en-US',
+      'https://whizzper-app.translate.goog/transcripts/share/st_12345?_x_tr_sl=en&_x_tr_tl=id&_x_tr_hl=en-US&_x_tr_pto=wapp',
     );
   });
 
