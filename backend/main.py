@@ -27,6 +27,11 @@ from backend.common.config_loader import read_env, load_server_config
 from backend.common.cache_manager import cleanup_old_files
 from backend.common.logging import setup_json_logging
 from backend.common.observability import init_sentry, generate_latest, CONTENT_TYPE_LATEST
+from backend.common.health import (
+    check_redis_health,
+    health_status_code,
+    health_status_label,
+)
 from backend.common.security import cors_origins
 from modules.utils.paths import SERVER_CONFIG_PATH, BACKEND_CACHE_DIR
 
@@ -42,18 +47,6 @@ def clean_cache_thread(ttl: int, frequency: int) -> threading.Thread:
         args=(ttl, frequency),
         daemon=True
     )
-
-
-def check_redis_health() -> bool:
-    redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
-    try:
-        import redis
-
-        client = redis.from_url(redis_url, socket_connect_timeout=1)
-        client.ping()
-        return True
-    except Exception:
-        return False
 
 
 def maybe_rebuild_database(engine) -> None:
@@ -168,7 +161,7 @@ def health_check():
     redis_ok = check_redis_health()
     try:
         with engine.connect() as conn:
-            conn.execute(text("SELECT 1") if hasattr(text, "__call__") else "SELECT 1")
+            conn.execute(text("SELECT 1"))
     except Exception:
         db_ok = False
 
@@ -186,12 +179,12 @@ def health_check():
     except Exception:
         pass
 
-    status_code = 200 if (db_ok and redis_ok) else 503
-    
+    status_code = health_status_code(db_ok)
+
     response_body = {
-        "status": "ok" if status_code == 200 else "degraded",
+        "status": health_status_label(db_ok, redis_ok),
         "database": db_ok,
-        "redis": redis_ok
+        "redis": redis_ok,
     }
     if pool_data:
         response_body["pool"] = pool_data

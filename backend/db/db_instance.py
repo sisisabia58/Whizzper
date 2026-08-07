@@ -8,6 +8,8 @@ from sqlalchemy.orm import declarative_base, sessionmaker
 def normalize_db_url(url: str) -> str:
     if url.startswith("postgres://"):
         return url.replace("postgres://", "postgresql+psycopg2://", 1)
+    if url.startswith("postgresql://") and "+psycopg2" not in url:
+        return url.replace("postgresql://", "postgresql+psycopg2://", 1)
     return url
 
 
