@@ -1,16 +1,14 @@
-function convertHostToTranslateGoog(hostname: string): string {
-  const converted = hostname.replace(/-/g, '--').replace(/\./g, '-');
-  return `${converted}.translate.goog`;
-}
+import { toTranslateGoogHostname } from '../translateProxy';
 
 function assertEqual(actual: string, expected: string) {
   if (actual !== expected) {
-    throw new Error(`Assertion failed: expected "${expected}", got "${actual}"`);
+    throw new Error(`Assertion failed:\nExpected: "${expected}"\nGot:      "${actual}"`);
   }
 }
 
-console.log('Testing domain encoding:');
-assertEqual(convertHostToTranslateGoog('whizzper.app'), 'whizzper-app.translate.goog');
-assertEqual(convertHostToTranslateGoog('web-production-d2649.up.railway.app'), 'web--production--d2649-up-railway-app.translate.goog');
-
-console.log('✓ All domain encoding tests passed!');
+assertEqual(toTranslateGoogHostname('whizzper.app'), 'whizzper-app.translate.goog');
+assertEqual(
+  toTranslateGoogHostname('web-production-d2649.up.railway.app'),
+  'web--production--d2649-up-railway-app.translate.goog',
+);
+console.log('✓ domainEncoding tests passed!');

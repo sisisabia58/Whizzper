@@ -109,10 +109,7 @@ export function TranscriptRow({ transcript, index, onDelete }: TranscriptRowProp
       }
       openTranslateForShareUrl(fullUrl);
     } catch (err) {
-      alert(
-        "Failed to generate share link for translation: " + String(err) +
-        "\n\nIf Google Translate shows a connection error, open the share page directly and paste it into translate.google.com."
-      );
+      alert("Failed to generate share link for translation: " + String(err));
     }
   };
 
