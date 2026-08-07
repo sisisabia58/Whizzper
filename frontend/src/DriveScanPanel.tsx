@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { fileSelectionToggleClasses } from './lib/selectionToggleClasses';
 import {
   FolderOpen,
   Folder,
@@ -557,14 +558,12 @@ export function DriveScanPanel({
                                     role="checkbox"
                                     aria-checked={checked}
                                     aria-label={`Select ${file.name}`}
-                                    className={`w-4.5 h-4.5 shrink-0 rounded border flex items-center justify-center transition-colors ${
-                                      checked ? 'bg-ink border-ink text-paper' : 'bg-paper border-zinc-300'
-                                    }`}
+                                    className={fileSelectionToggleClasses(checked)}
                                   >
                                     {checked && (
                                       <svg
                                         viewBox="0 0 12 12"
-                                        className="w-2.5 h-2.5"
+                                        className="w-3 h-3"
                                         fill="none"
                                         stroke="currentColor"
                                         strokeWidth={2.5}
@@ -721,9 +720,7 @@ export function DriveScanPanel({
                         role="checkbox"
                         aria-checked={included}
                         aria-label={`${included ? 'Exclude' : 'Include'} ${f.name}`}
-                        className={`w-5 h-5 shrink-0 rounded-md border flex items-center justify-center transition-colors ${
-                          included ? 'bg-ink border-ink text-paper' : 'bg-paper border-zinc-300'
-                        }`}
+                        className={fileSelectionToggleClasses(included)}
                       >
                         {included && (
                           <svg
