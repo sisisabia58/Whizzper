@@ -1,47 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import {
-  buildTranslateGoogleComUrl,
-  generateGoogleTranslateProxyUrl,
-  toTranslateGoogHostname,
-} from './translateProxy';
-
-describe('toTranslateGoogHostname', () => {
-  it('encodes hostnames for translate.goog reference', () => {
-    expect(toTranslateGoogHostname('whizzper.app')).toBe('whizzper-app.translate.goog');
-    expect(toTranslateGoogHostname('web-production-d2649.up.railway.app')).toBe(
-      'web--production--d2649-up-railway-app.translate.goog',
-    );
-  });
-});
-
-describe('buildTranslateGoogleComUrl', () => {
-  it('uses translate.google.com root with sl and u params', () => {
-    const publicUrl = 'https://whizzper.app/transcripts/share/st_12345';
-    expect(buildTranslateGoogleComUrl(publicUrl, 'auto')).toBe(
-      `https://translate.google.com/?sl=auto&u=${encodeURIComponent(publicUrl)}`,
-    );
-  });
-
-  it('includes tl when provided', () => {
-    const publicUrl = 'https://whizzper.app/transcripts/share/st_12345';
-    expect(buildTranslateGoogleComUrl(publicUrl, 'en', 'id')).toBe(
-      `https://translate.google.com/?sl=en&tl=id&u=${encodeURIComponent(publicUrl)}`,
-    );
-  });
-});
+import { generateGoogleTranslateProxyUrl } from './translateProxy';
 
 describe('generateGoogleTranslateProxyUrl', () => {
-  it('uses translate.google.com for public domains', () => {
-    const railwayUrl = 'https://web-production-d2649.up.railway.app/transcripts/share/st_12345';
-    expect(generateGoogleTranslateProxyUrl(railwayUrl, 'auto')).toBe(
-      `https://translate.google.com/?sl=auto&u=${encodeURIComponent(railwayUrl)}`,
+  it('builds translate.goog URLs for public domains', () => {
+    const publicUrl = 'https://whizzper.app/transcripts/share/st_12345';
+    expect(generateGoogleTranslateProxyUrl(publicUrl, 'en', 'id')).toBe(
+      'https://whizzper-app.translate.goog/transcripts/share/st_12345?_x_tr_sl=en&_x_tr_tl=id&_x_tr_hl=en-US&_x_tr_pto=wapp',
     );
   });
 
-  it('builds localhost URL for dev (caller blocks if unreachable)', () => {
+  it('falls back to translate.google.com for localhost', () => {
     const localUrl = 'http://localhost:8000/transcripts/share/st_12345';
     expect(generateGoogleTranslateProxyUrl(localUrl, 'auto', 'es')).toBe(
-      `https://translate.google.com/?sl=auto&tl=es&u=${encodeURIComponent(localUrl)}`,
+      'https://translate.google.com/translate?sl=auto&tl=es&u=' + encodeURIComponent(localUrl),
     );
   });
 });
