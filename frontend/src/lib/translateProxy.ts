@@ -1,7 +1,6 @@
 /**
  * Generates a Google Translate proxy URL for a given public page URL.
- * Uses the `.translate.goog` hostname (same as TurboScribe). Omits `_x_tr_pto=wapp`
- * which can trigger lazy viewport-only translation in Google's web-app mode.
+ * Uses the `.translate.goog` hostname (same as TurboScribe).
  */
 export function generateGoogleTranslateProxyUrl(
   pageUrl: string,
@@ -19,10 +18,7 @@ export function generateGoogleTranslateProxyUrl(
       /^(\d{1,3}\.){3}\d{1,3}$/.test(hostname);
 
     if (isLocalhost || !hostname.includes('.')) {
-      const encodedUrl = encodeURIComponent(pageUrl);
-      return `https://translate.google.com/translate?sl=${encodeURIComponent(
-        sourceLang
-      )}&tl=${encodeURIComponent(targetLang)}&u=${encodedUrl}`;
+      return buildTranslateGoogleComUrl(pageUrl, sourceLang, targetLang);
     }
 
     const convertedHost = `${hostname.replace(/-/g, '--').replace(/\./g, '-')}.translate.goog`;
@@ -30,18 +26,30 @@ export function generateGoogleTranslateProxyUrl(
     searchParams.set('_x_tr_sl', sourceLang);
     searchParams.set('_x_tr_tl', targetLang);
     searchParams.set('_x_tr_hl', 'en-US');
+    searchParams.set('_x_tr_pto', 'wapp');
 
     const searchString = searchParams.toString() ? `?${searchParams.toString()}` : '';
     return `https://${convertedHost}${parsed.pathname}${searchString}`;
   } catch {
-    return `https://translate.google.com/translate?sl=${encodeURIComponent(
-      sourceLang
-    )}&tl=${encodeURIComponent(targetLang)}&u=${encodeURIComponent(pageUrl)}`;
+    return buildTranslateGoogleComUrl(pageUrl, sourceLang, targetLang);
   }
 }
 
+/** Fallback URL served from translate.google.com (localhost and error paths). */
+export function buildTranslateGoogleComUrl(
+  pageUrl: string,
+  sourceLang: string = 'auto',
+  targetLang: string = 'en'
+): string {
+  const encodedUrl = encodeURIComponent(pageUrl);
+  return `https://translate.google.com/translate?sl=${encodeURIComponent(
+    sourceLang
+  )}&tl=${encodeURIComponent(targetLang)}&u=${encodedUrl}`;
+}
+
 /**
- * Opens the Google Translate proxy URL in a new browser tab with noopener,noreferrer flags.
+ * Opens the Google Translate proxy URL in a new tab.
+ * Do not pass noopener/noreferrer — some browsers reset the connection without referrer.
  */
 export function openGoogleTranslateProxy(
   pageUrl: string,
@@ -49,5 +57,12 @@ export function openGoogleTranslateProxy(
   targetLang: string = 'en'
 ): void {
   const proxyUrl = generateGoogleTranslateProxyUrl(pageUrl, sourceLang, targetLang);
-  window.open(proxyUrl, '_blank', 'noopener,noreferrer');
+  const googleComUrl = buildTranslateGoogleComUrl(pageUrl, sourceLang, targetLang);
+  const opened = window.open(proxyUrl, '_blank');
+  if (!opened) {
+    const fallback = window.open(googleComUrl, '_blank');
+    if (!fallback) {
+      window.location.href = googleComUrl;
+    }
+  }
 }

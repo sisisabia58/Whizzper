@@ -7,7 +7,10 @@ import {
 
 describe('openTranslateForShareUrl', () => {
   beforeEach(() => {
-    vi.stubGlobal('window', { open: vi.fn() });
+    vi.stubGlobal('window', {
+      open: vi.fn(() => null),
+      location: { href: '' },
+    });
   });
 
   afterEach(() => {
@@ -20,10 +23,11 @@ describe('openTranslateForShareUrl', () => {
 
     expect(DEFAULT_TRANSLATE_SOURCE_LANG).toBe('auto');
     expect(DEFAULT_TRANSLATE_TARGET_LANG).toBe('en');
-    expect(window.open).toHaveBeenCalledWith(
-      expect.stringContaining('translate'),
-      '_blank',
-      'noopener,noreferrer',
-    );
+    expect(window.open).toHaveBeenCalled();
+    expect(
+      (window.open as ReturnType<typeof vi.fn>).mock.calls.some((call) =>
+        String(call[0]).includes('translate'),
+      ),
+    ).toBe(true);
   });
 });
