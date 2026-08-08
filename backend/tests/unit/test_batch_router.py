@@ -6,8 +6,8 @@ from fastapi.testclient import TestClient
 os.environ.setdefault("MODAL_WEB_ENDPOINT_URL", "https://mock-endpoint.modal.run")
 
 
-@patch("backend.queue.tasks.orchestrate_batch_task")
-def test_queue_batch_transcription(mock_orchestrate):
+@patch("backend.queue.enqueue.enqueue_task")
+def test_queue_batch_transcription(mock_enqueue):
     from backend.main import app
     from backend.db.db_instance import engine, SessionLocal
     from sqlmodel import SQLModel

@@ -3,6 +3,7 @@ import threading
 from typing import List, Optional, Dict, Any
 from contextlib import contextmanager
 from backend.modal_pool.counters import Counters
+from backend.modal_pool.round_robin import InMemoryRoundRobin, RoundRobin
 
 class ModalEndpointPool:
     def __init__(
@@ -12,15 +13,16 @@ class ModalEndpointPool:
         per_endpoint_cap: int = 10,
         unhealthy_threshold: int = 3,
         cooldown_seconds: int = 60,
+        round_robin: RoundRobin | None = None,
     ) -> None:
         self.endpoints = endpoints
         self.counters = counters
         self.per_endpoint_cap = per_endpoint_cap
         self.unhealthy_threshold = unhealthy_threshold
         self.cooldown_seconds = cooldown_seconds
-        
+        self.round_robin = round_robin or InMemoryRoundRobin()
+
         self._lock = threading.Lock()
-        self._rr_index = 0
         
         # Health tracking
         self._consecutive_failures: Dict[str, int] = {ep: 0 for ep in endpoints}
@@ -60,11 +62,11 @@ class ModalEndpointPool:
             min_load = min(el[1] for el in candidates)
             best_candidates = [el[0] for el in candidates if el[1] == min_load]
             
-            # Tie-break by round-robin over the subset of best candidates
-            # Choose from best_candidates that matches the round robin index sequence
-            chosen = best_candidates[self._rr_index % len(best_candidates)]
-            self._rr_index = (self._rr_index + 1) % len(self.endpoints)
-            return chosen
+            rr_idx = self.round_robin.pick_index(
+                num_choices=len(best_candidates),
+                cycle_length=len(self.endpoints),
+            )
+            return best_candidates[rr_idx]
 
     @contextmanager
     def acquire(self):

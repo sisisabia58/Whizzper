@@ -232,6 +232,7 @@ async def retry_task(
     session: Session = Depends(get_db_session),
 ):
     from backend.db.task.models import TaskStatus
+    from backend.queue.enqueue import CeleryEnqueueError, enqueue_task
     from backend.queue.tasks import download_drive_file_task, transcribe_audio_task
 
     task = session.query(Task).filter(Task.uuid == identifier).first()
@@ -243,10 +244,16 @@ async def retry_task(
     task.error = None
     task.progress = 0.0
     session.commit()
-    if task.source_file_id and task.batch_id:
-        download_drive_file_task.delay(task.batch_id, task.source_file_id)
-    else:
-        transcribe_audio_task.delay(identifier)
+    try:
+        if task.source_file_id and task.batch_id:
+            enqueue_task(download_drive_file_task, task.batch_id, task.source_file_id)
+        else:
+            enqueue_task(transcribe_audio_task, identifier)
+    except CeleryEnqueueError as exc:
+        task.status = TaskStatus.FAILED
+        task.error = str(exc)
+        session.commit()
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     return {"identifier": identifier, "status": "queued"}
 
 
