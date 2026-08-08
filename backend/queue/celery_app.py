@@ -3,6 +3,11 @@ from celery import Celery
 from celery.schedules import crontab
 
 redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+
+broker_ssl = None
+if redis_url.startswith("rediss://"):
+    broker_ssl = {"ssl_cert_reqs": "CERT_NONE"}
+
 celery_app = Celery("whizzper_tasks", broker=redis_url, backend=redis_url)
 
 task_time_limit = int(os.environ.get("CELERY_TASK_TIME_LIMIT", "7200"))
@@ -13,6 +18,12 @@ celery_app.conf.update(
     task_serializer="json",
     result_serializer="json",
     accept_content=["json"],
+    task_ignore_result=True,
+    task_store_errors_even_if_ignored=False,
+    broker_connection_retry_on_startup=True,
+    broker_connection_max_retries=3,
+    broker_use_ssl=broker_ssl,
+    redis_backend_use_ssl=broker_ssl,
     task_always_eager=os.environ.get("USE_TASK_QUEUE", "true").lower() == "false",
     task_routes={
         "download_drive_file_task": {"queue": "download"},

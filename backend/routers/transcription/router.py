@@ -219,6 +219,8 @@ async def transcription(
     bgm_separation_params: BGMSeparationParams = Depends(),
     diarization_params: DiarizationParams = Depends(),
 ) -> QueueResponse:
+    from fastapi import HTTPException
+    from backend.queue.enqueue import CeleryEnqueueError, enqueue_task
     from backend.queue.transcription_core import save_audio_to_wav
     from backend.queue.tasks import transcribe_audio_task
 
@@ -244,7 +246,17 @@ async def transcription(
     )
 
     save_audio_to_wav(identifier, audio)
-    transcribe_audio_task.delay(identifier)
+    try:
+        enqueue_task(transcribe_audio_task, identifier)
+    except CeleryEnqueueError as exc:
+        update_task_status_in_db(
+            identifier,
+            {"status": TaskStatus.FAILED, "error": str(exc)},
+        )
+        raise HTTPException(
+            status_code=503,
+            detail=str(exc),
+        ) from exc
 
     return QueueResponse(identifier=identifier, status=TaskStatus.QUEUED, message="Transcription task has queued")
 
@@ -255,8 +267,11 @@ async def queue_batch_transcription(
     session: Session = Depends(get_db_session)
 ):
     import uuid
+    from fastapi import HTTPException
     from backend.db.batch.dao import add_batch_to_db
-    from backend.db.task.models import TaskStatus, TaskType
+    from backend.db.batch.models import BatchJob
+    from backend.db.task.models import Task, TaskStatus, TaskType
+    from backend.queue.enqueue import CeleryEnqueueError, enqueue_task
     from backend.queue.tasks import orchestrate_batch_task
 
     batch_id = str(uuid.uuid4())
@@ -307,7 +322,17 @@ async def queue_batch_transcription(
             source_parent_id=parent_id
         )
 
-    orchestrate_batch_task.delay(batch_id=batch_id, offset=0)
+    try:
+        enqueue_task(orchestrate_batch_task, batch_id=batch_id, offset=0)
+    except CeleryEnqueueError as exc:
+        batch = session.query(BatchJob).filter(BatchJob.batch_id == batch_id).first()
+        if batch:
+            batch.status = "failed"
+        for task in session.query(Task).filter(Task.batch_id == batch_id):
+            task.status = TaskStatus.FAILED
+            task.error = str(exc)
+        session.commit()
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
     return {
         "batch_id": batch_id,
