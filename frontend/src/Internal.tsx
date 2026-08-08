@@ -1,10 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { AudioLines, Upload, Search, Files, CircleCheck, Loader2, Hourglass, ServerCog } from 'lucide-react';
 import { InternalSidebar } from './InternalSidebar';
 import { TranscriptRow } from './TranscriptRow';
 import { TranscribeModal } from './TranscribeModal';
-import { Transcript, fetchAllTasks, groupTranscripts } from './transcriptions';
+import { Transcript, fetchAllTasks, groupTranscripts, fetchBatchStatus, mergeBatchIntoTranscripts } from './transcriptions';
 import { JobRow } from './JobRow';
 
 export function Internal() {
@@ -114,6 +114,33 @@ export function Internal() {
       if (reconnectTimer) clearTimeout(reconnectTimer);
       eventSource?.close();
     };
+  }, []);
+
+  const listRef = useRef(transcriptsList);
+  listRef.current = transcriptsList;
+
+  useEffect(() => {
+    const poll = async () => {
+      const activeBatchIds = new Set(
+        listRef.current
+          .filter((t) => t.batchId && (t.status === 'processing' || t.status === 'queued'))
+          .map((t) => t.batchId as string)
+      );
+      if (activeBatchIds.size === 0) return;
+
+      for (const batchId of activeBatchIds) {
+        try {
+          const status = await fetchBatchStatus(batchId);
+          setTranscriptsList((prev) => mergeBatchIntoTranscripts(prev, status));
+        } catch (e) {
+          console.error('Batch poll failed:', batchId, e);
+        }
+      }
+    };
+
+    const interval = setInterval(poll, 5000);
+    poll();
+    return () => clearInterval(interval);
   }, []);
 
   const handleDeleteTask = (id: string) => {

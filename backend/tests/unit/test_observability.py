@@ -1,18 +1,9 @@
-import sys
-from unittest.mock import MagicMock
-
-# Mock heavy ML modules so fast backend unit tests run isolated
-sys.modules["modules.whisper.faster_whisper_inference"] = MagicMock()
-sys.modules["modules.vad.silero_vad_inference"] = MagicMock()
-sys.modules["modules.uvr.music_separator"] = MagicMock()
-sys.modules["modules.diarize.diarizer"] = MagicMock()
-
-import pytest
 from fastapi.testclient import TestClient
-from backend.main import app
 
 
 def test_health_endpoint():
+    from backend.main import app
+
     client = TestClient(app)
     response = client.get("/health")
     assert response.status_code in [200, 503]
@@ -23,7 +14,11 @@ def test_health_endpoint():
 
 
 def test_metrics_endpoint():
+    from backend.main import app
+
     client = TestClient(app)
     response = client.get("/metrics")
     assert response.status_code == 200
     assert b"whizzper_tasks_total" in response.content or b"process_cpu_seconds" in response.content
+    assert b"whizzper_queue_depth" in response.content
+    assert b"whizzper_batches_in_progress" in response.content

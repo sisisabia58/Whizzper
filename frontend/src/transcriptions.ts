@@ -321,6 +321,64 @@ export async function fetchTaskById(id: string): Promise<any> {
   return res.json();
 }
 
+export interface BatchStatusResponse {
+  batch_id: string;
+  folder_name: string;
+  status: string;
+  total_files: number;
+  completed_files: number;
+  failed_files: number;
+  progress: number;
+  children: Array<{
+    identifier: string;
+    name: string;
+    path?: string;
+    status: string;
+    progress?: number;
+    error?: string;
+  }>;
+}
+
+export async function fetchBatchStatus(batchId: string): Promise<BatchStatusResponse> {
+  const res = await fetch(`${API_BASE}/task/batch/${batchId}`, { cache: 'no-store' });
+  if (!res.ok) throw new Error('Failed to fetch batch status');
+  return res.json();
+}
+
+export async function cancelBatch(batchId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/task/batch/${batchId}/cancel`, { method: 'POST' });
+  if (!res.ok) throw new Error('Failed to cancel batch');
+}
+
+export async function retryTask(identifier: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/task/${identifier}/retry`, { method: 'POST' });
+  if (!res.ok) throw new Error('Failed to retry task');
+}
+
+export function mergeBatchIntoTranscripts(
+  list: Transcript[],
+  batchStatus: BatchStatusResponse
+): Transcript[] {
+  const childMap = new Map(batchStatus.children.map((c) => [c.identifier, c]));
+  return list.map((t) => {
+    if (t.batchId !== batchStatus.batch_id) return t;
+    const child = childMap.get(t.id);
+    if (!child) return t;
+    let status: TranscriptStatus = 'queued';
+    if (child.status === 'completed') status = 'completed';
+    else if (child.status === 'failed') status = 'failed';
+    else if (child.status === 'in_progress') status = 'processing';
+    return {
+      ...t,
+      name: child.name || t.name,
+      status,
+      progress: Math.round((child.progress ?? 0) * 100),
+      error: child.error,
+      batchFolderName: batchStatus.folder_name,
+    };
+  });
+}
+
 export async function requestShareToken(taskUuid: string): Promise<{ token: string; share_url: string }> {
   const resp = await fetch(`/api/transcripts/${taskUuid}/share`, { method: 'POST' });
   if (!resp.ok) {

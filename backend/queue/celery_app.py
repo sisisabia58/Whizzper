@@ -1,15 +1,37 @@
 import os
 from celery import Celery
+from celery.schedules import crontab
 
 redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
-celery_app = Celery(
-    "whizzper_tasks",
-    broker=redis_url,
-    backend=redis_url
-)
+celery_app = Celery("whizzper_tasks", broker=redis_url, backend=redis_url)
+
+task_time_limit = int(os.environ.get("CELERY_TASK_TIME_LIMIT", "7200"))
+task_soft_limit = int(os.environ.get("CELERY_TASK_SOFT_TIME_LIMIT", "6900"))
+visibility_timeout = int(os.environ.get("CELERY_VISIBILITY_TIMEOUT", "10800"))
+
 celery_app.conf.update(
     task_serializer="json",
     result_serializer="json",
     accept_content=["json"],
-    task_always_eager=os.environ.get("USE_TASK_QUEUE", "true").lower() == "false"
+    task_always_eager=os.environ.get("USE_TASK_QUEUE", "true").lower() == "false",
+    task_routes={
+        "download_drive_file_task": {"queue": "download"},
+        "transcribe_audio_task": {"queue": "transcribe"},
+        "orchestrate_batch_task": {"queue": "orchestrate"},
+        "reconcile_stuck_tasks": {"queue": "reconcile"},
+    },
+    worker_prefetch_multiplier=1,
+    task_acks_late=True,
+    task_reject_on_worker_lost=True,
+    task_time_limit=task_time_limit,
+    task_soft_time_limit=task_soft_limit,
+    broker_transport_options={"visibility_timeout": visibility_timeout},
+    result_backend_transport_options={"visibility_timeout": visibility_timeout},
+    visibility_timeout=visibility_timeout,
+    beat_schedule={
+        "reconcile-stuck-tasks": {
+            "task": "backend.queue.tasks.reconcile_stuck_tasks",
+            "schedule": crontab(minute="*/5"),
+        },
+    },
 )
