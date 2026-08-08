@@ -30,8 +30,10 @@ celery_app.conf.update(
     visibility_timeout=visibility_timeout,
     beat_schedule={
         "reconcile-stuck-tasks": {
-            "task": "backend.queue.tasks.reconcile_stuck_tasks",
+            "task": "reconcile_stuck_tasks",
             "schedule": crontab(minute="*/5"),
         },
     },
 )
+
+import backend.queue.tasks  # noqa: F401 — register task definitions on workers
