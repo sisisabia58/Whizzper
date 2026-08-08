@@ -26,7 +26,12 @@ from backend.routers.auth.router import auth_router
 from backend.common.config_loader import read_env, load_server_config
 from backend.common.cache_manager import cleanup_old_files
 from backend.common.logging import setup_json_logging
-from backend.common.observability import init_sentry, generate_latest, CONTENT_TYPE_LATEST
+from backend.common.observability import (
+    init_sentry,
+    generate_latest,
+    CONTENT_TYPE_LATEST,
+    refresh_observability_gauges,
+)
 from backend.common.health import (
     check_redis_health,
     health_status_code,
@@ -198,6 +203,7 @@ def health_check():
 
 @app.get("/metrics")
 def metrics():
+    refresh_observability_gauges()
     return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 

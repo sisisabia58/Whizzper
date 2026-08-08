@@ -12,7 +12,7 @@ import {
   FileText,
   Globe } from
 'lucide-react';
-import { TranscriptJob, jobSummary, statusLabel, fetchTaskById, requestShareToken } from './transcriptions';
+import { TranscriptJob, jobSummary, statusLabel, fetchTaskById, requestShareToken, cancelBatch, retryTask } from './transcriptions';
 import { segmentsToSRT, segmentsToTXT, triggerDownload } from './TranscriptRow';
 import { buildSharePageUrl, googleTranslateProxySupported, resolveSharePageOrigin } from './lib/appOrigin';
 import { openTranslateForShareUrl } from './lib/translateFlow';
@@ -75,6 +75,26 @@ export function JobRow({ job, index }: JobRowProps) {
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
+  };
+
+  const handleCancelBatch = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await cancelBatch(job.id);
+      window.location.reload();
+    } catch (err) {
+      alert('Failed to cancel batch: ' + String(err));
+    }
+  };
+
+  const handleRetryFile = async (e: React.MouseEvent, taskId: string) => {
+    e.stopPropagation();
+    try {
+      await retryTask(taskId);
+      window.location.reload();
+    } catch (err) {
+      alert('Failed to retry: ' + String(err));
+    }
   };
 
   return (
@@ -173,6 +193,15 @@ export function JobRow({ job, index }: JobRowProps) {
             `Processing ${s.done}/${s.total}` :
             statusLabel[rowStatus]}
           </span>
+
+          {isProcessing &&
+          <button
+            onClick={handleCancelBatch}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-full border border-zinc-300 text-sm font-medium text-zinc-600 hover:bg-paper-off transition-colors"
+            title="Cancel batch">
+            Cancel
+          </button>
+          }
 
           {allDone && s.completed > 0 &&
           <button
@@ -295,6 +324,15 @@ export function JobRow({ job, index }: JobRowProps) {
                     
                       {statusLabel[f.status]}
                     </span>
+
+                    {f.status === 'failed' &&
+                  <button
+                    onClick={(e) => handleRetryFile(e, f.id)}
+                    className="text-xs font-medium text-ink underline shrink-0"
+                  >
+                    Retry
+                  </button>
+                  }
 
                     {f.status === 'completed' &&
                   <div className="flex items-center gap-1 shrink-0">

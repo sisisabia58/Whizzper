@@ -212,6 +212,44 @@ async def delete_task(
         raise HTTPException(status_code=404, detail="Task not found")
 
 
+@task_router.post("/batch/{batch_id}/cancel")
+async def cancel_batch_job(
+    batch_id: str,
+    session: Session = Depends(get_db_session),
+):
+    from backend.db.batch.dao import get_batch_from_db
+    from backend.queue.batch_state import cancel_batch as do_cancel
+
+    if not get_batch_from_db(batch_id, session):
+        raise HTTPException(status_code=404, detail="Batch job not found")
+    count = do_cancel(batch_id, session)
+    return {"batch_id": batch_id, "status": "cancelled", "cancelled_files": count}
+
+
+@task_router.post("/{identifier}/retry")
+async def retry_task(
+    identifier: str,
+    session: Session = Depends(get_db_session),
+):
+    from backend.db.task.models import TaskStatus
+    from backend.queue.tasks import download_drive_file_task, transcribe_audio_task
+
+    task = session.query(Task).filter(Task.uuid == identifier).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    if task.status != TaskStatus.FAILED:
+        raise HTTPException(status_code=400, detail="Only failed tasks can be retried")
+    task.status = TaskStatus.QUEUED
+    task.error = None
+    task.progress = 0.0
+    session.commit()
+    if task.source_file_id and task.batch_id:
+        download_drive_file_task.delay(task.batch_id, task.source_file_id)
+    else:
+        transcribe_audio_task.delay(identifier)
+    return {"identifier": identifier, "status": "queued"}
+
+
 @task_router.get("/batch/{batch_id}")
 async def get_batch_status(
     batch_id: str,
