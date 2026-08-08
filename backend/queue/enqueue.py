@@ -3,8 +3,6 @@
 import os
 from typing import Any, Callable
 
-from celery import Celery
-
 
 class CeleryEnqueueError(Exception):
     """Redis broker is missing or unreachable — batch/single enqueue cannot proceed."""
