@@ -3,7 +3,6 @@ from fastapi import Query
 from pydantic import BaseModel, Field, field_validator, ConfigDict
 from enum import Enum
 from copy import deepcopy
-import yaml
 
 from modules.utils.constants import *
 

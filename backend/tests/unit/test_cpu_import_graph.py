@@ -37,6 +37,11 @@ def test_whisper_factory_does_not_import_torch_at_module_level():
     assert "torch" not in roots
 
 
+def test_files_manager_does_not_import_gradio_at_module_level():
+    roots = _top_level_roots("modules/utils/files_manager.py")
+    assert "gradio" not in roots
+
+
 def test_requirements_railway_omits_gpu_stack():
     lines = [
         ln.strip().lower().split("==")[0].split(">=")[0].split("[")[0]
