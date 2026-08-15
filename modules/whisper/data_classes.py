@@ -1,10 +1,6 @@
-import faster_whisper.transcribe
-import gradio as gr
-import torch
-from typing import Optional, Dict, List, Union, NamedTuple
+from typing import Optional, Dict, List, Union, NamedTuple, Any
 from fastapi import Query
 from pydantic import BaseModel, Field, field_validator, ConfigDict
-from gradio_i18n import Translate, gettext as _
 from enum import Enum
 from copy import deepcopy
 import yaml
@@ -33,8 +29,7 @@ class Segment(BaseModel):
     words: Optional[List['Word']] = Field(default=None, description="List of words contained in the segment")
 
     @classmethod
-    def from_faster_whisper(cls,
-                            seg: faster_whisper.transcribe.Segment):
+    def from_faster_whisper(cls, seg: Any):
         if seg.words is not None:
             words = [
                 Word(
@@ -117,7 +112,9 @@ class VadParams(BaseParams):
     )
 
     @classmethod
-    def to_gradio_inputs(cls, defaults: Optional[Dict] = None) -> List[gr.components.base.FormComponent]:
+    def to_gradio_inputs(cls, defaults: Optional[Dict] = None) -> List[Any]:
+        import gradio as gr
+        from gradio_i18n import gettext as _
         return [
             gr.Checkbox(
                 label=_("Enable Silero VAD Filter"),
@@ -170,7 +167,9 @@ class DiarizationParams(BaseParams):
     def to_gradio_inputs(cls,
                          defaults: Optional[Dict] = None,
                          available_devices: Optional[List] = None,
-                         device: Optional[str] = None) -> List[gr.components.base.FormComponent]:
+                         device: Optional[str] = None) -> List[Any]:
+        import gradio as gr
+        from gradio_i18n import gettext as _
         return [
             gr.Checkbox(
                 label=_("Enable Diarization"),
@@ -220,7 +219,9 @@ class BGMSeparationParams(BaseParams):
                         defaults: Optional[Dict] = None,
                         available_devices: Optional[List] = None,
                         device: Optional[str] = None,
-                        available_models: Optional[List] = None) -> List[gr.components.base.FormComponent]:
+                        available_models: Optional[List] = None) -> List[Any]:
+        import gradio as gr
+        from gradio_i18n import gettext as _
         return [
             gr.Checkbox(
                 label=_("Enable Background Music Remover Filter"),
@@ -344,7 +345,7 @@ class WhisperParams(BaseParams):
     @field_validator('lang')
     def validate_lang(cls, v):
         from modules.utils.constants import AUTOMATIC_DETECTION
-        return None if v == AUTOMATIC_DETECTION.unwrap() else v
+        return None if v == AUTOMATIC_DETECTION else v
 
     @field_validator('suppress_tokens')
     def validate_supress_tokens(cls, v):
@@ -369,6 +370,8 @@ class WhisperParams(BaseParams):
                          available_langs: Optional[List] = None,
                          available_compute_types: Optional[List] = None,
                          compute_type: Optional[str] = None):
+        import gradio as gr
+        from gradio_i18n import gettext as _
         whisper_type = WhisperImpl.FASTER_WHISPER.value if whisper_type is None else whisper_type.strip().lower()
 
         inputs = []
