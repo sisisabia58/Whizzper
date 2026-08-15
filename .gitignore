@@ -14,5 +14,7 @@ modules/yt_tmp.wav
 *.db
 .omo/
 .agents/
-docs/
+docs/*
+!docs/superpowers/
+!docs/superpowers/**
 
