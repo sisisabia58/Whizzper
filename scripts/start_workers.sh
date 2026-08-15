@@ -9,7 +9,7 @@
 
 set -euo pipefail
 
-PROFILE="${WORKER_PROFILE:-batch}"
+PROFILE="${WORKER_PROFILE:-idle}"
 
 case "$PROFILE" in
   idle)
@@ -17,7 +17,7 @@ case "$PROFILE" in
     : "${CELERY_TRANSCRIBE_CONCURRENCY:=2}"
     : "${CELERY_CONTROL_CONCURRENCY:=1}"
     : "${CELERY_COMBINED_CONCURRENCY:=2}"
-    : "${CELERY_ENABLE_BEAT:=0}"
+    : "${CELERY_ENABLE_BEAT:=1}"
     : "${CELERY_COMBINED_WORKER:=1}"
     ;;
   batch)
