@@ -73,7 +73,7 @@ if [ "$COMBINED" = "1" ] || [ "$COMBINED" = "true" ]; then
     -n combined@%h &
 else
   celery -A backend.queue.celery_app worker -Q download -c "$DOWNLOAD_C" -n download@%h &
-  celery -A backend.queue.celery_app worker -Q transcribe -c "$TRANSCRIBE_C" -n transcribe@%h &
+  celery -A backend.queue.celery_app worker -Q transcribe -P threads -c "$TRANSCRIBE_C" -n transcribe@%h &
   celery -A backend.queue.celery_app worker -Q orchestrate,reconcile -c "$CONTROL_C" -n control@%h &
 fi
 

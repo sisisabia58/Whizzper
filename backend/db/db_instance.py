@@ -14,6 +14,14 @@ def normalize_db_url(url: str) -> str:
     return url
 
 
+def postgres_pool_kwargs() -> dict:
+    return {
+        "pool_pre_ping": True,
+        "pool_size": int(os.environ.get("DB_POOL_SIZE", "20")),
+        "max_overflow": int(os.environ.get("DB_MAX_OVERFLOW", "40")),
+    }
+
+
 raw_url = os.environ.get("DB_URL") or os.environ.get("DATABASE_URL") or "sqlite:///./whizzper.db"
 DB_URL = normalize_db_url(raw_url)
 
@@ -23,7 +31,7 @@ if "sqlite" in DB_URL:
     if ":memory:" in DB_URL:
         engine_args["poolclass"] = StaticPool
 if "sqlite" not in DB_URL:
-    engine_args.update({"pool_size": 10, "max_overflow": 20})
+    engine_args.update(postgres_pool_kwargs())
 
 engine = create_engine(DB_URL, **engine_args)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
