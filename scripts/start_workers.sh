@@ -9,7 +9,7 @@
 
 set -euo pipefail
 
-PROFILE="${WORKER_PROFILE:-batch}"
+PROFILE="${WORKER_PROFILE:-idle}"
 
 case "$PROFILE" in
   idle)
@@ -17,7 +17,7 @@ case "$PROFILE" in
     : "${CELERY_TRANSCRIBE_CONCURRENCY:=2}"
     : "${CELERY_CONTROL_CONCURRENCY:=1}"
     : "${CELERY_COMBINED_CONCURRENCY:=2}"
-    : "${CELERY_ENABLE_BEAT:=0}"
+    : "${CELERY_ENABLE_BEAT:=1}"
     : "${CELERY_COMBINED_WORKER:=1}"
     ;;
   batch)
@@ -73,7 +73,7 @@ if [ "$COMBINED" = "1" ] || [ "$COMBINED" = "true" ]; then
     -n combined@%h &
 else
   celery -A backend.queue.celery_app worker -Q download -c "$DOWNLOAD_C" -n download@%h &
-  celery -A backend.queue.celery_app worker -Q transcribe -c "$TRANSCRIBE_C" -n transcribe@%h &
+  celery -A backend.queue.celery_app worker -Q transcribe -P threads -c "$TRANSCRIBE_C" -n transcribe@%h &
   celery -A backend.queue.celery_app worker -Q orchestrate,reconcile -c "$CONTROL_C" -n control@%h &
 fi
 

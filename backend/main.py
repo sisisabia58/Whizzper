@@ -41,6 +41,19 @@ from backend.common.security import cors_origins
 from modules.utils.paths import SERVER_CONFIG_PATH, BACKEND_CACHE_DIR
 
 
+def modal_inference_configured() -> bool:
+    return bool(os.environ.get("MODAL_WEB_ENDPOINT_URL") or os.environ.get("MODAL_ENDPOINTS"))
+
+
+def maybe_skip_local_ml_warmup():
+    """No-op marker for tests: warmup is gated by modal_inference_configured()."""
+    if modal_inference_configured():
+        return
+    get_pipeline()
+    get_vad_model()
+    get_bgm_separation_inferencer()
+
+
 def clean_cache_thread(ttl: int, frequency: int) -> threading.Thread:
     def clean_cache(_ttl: int, _frequency: int):
         while True:
@@ -116,9 +129,13 @@ async def lifespan(app: FastAPI):
     import backend.db.share.models
     SQLModel.metadata.create_all(bind=engine)
 
-    transcription_pipeline = get_pipeline()
-    vad_inferencer = get_vad_model()
-    bgm_separation_inferencer = get_bgm_separation_inferencer()
+    transcription_pipeline = None
+    vad_inferencer = None
+    bgm_separation_inferencer = None
+    if not modal_inference_configured():
+        transcription_pipeline = get_pipeline()
+        vad_inferencer = get_vad_model()
+        bgm_separation_inferencer = get_bgm_separation_inferencer()
 
     cache_thread = clean_cache_thread(server_config["cache"]["ttl"], server_config["cache"]["frequency"])
     cache_thread.start()

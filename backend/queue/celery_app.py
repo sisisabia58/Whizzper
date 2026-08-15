@@ -13,6 +13,7 @@ celery_app = Celery("whizzper_tasks", broker=redis_url, backend=redis_url)
 task_time_limit = int(os.environ.get("CELERY_TASK_TIME_LIMIT", "7200"))
 task_soft_limit = int(os.environ.get("CELERY_TASK_SOFT_TIME_LIMIT", "6900"))
 visibility_timeout = int(os.environ.get("CELERY_VISIBILITY_TIMEOUT", "10800"))
+worker_max_tasks_per_child = int(os.environ.get("CELERY_WORKER_MAX_TASKS_PER_CHILD", "10"))
 
 celery_app.conf.update(
     task_serializer="json",
@@ -39,6 +40,7 @@ celery_app.conf.update(
     broker_transport_options={"visibility_timeout": visibility_timeout},
     result_backend_transport_options={"visibility_timeout": visibility_timeout},
     visibility_timeout=visibility_timeout,
+    worker_max_tasks_per_child=worker_max_tasks_per_child,
     beat_schedule={
         "reconcile-stuck-tasks": {
             "task": "reconcile_stuck_tasks",

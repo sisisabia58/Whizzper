@@ -8,16 +8,20 @@ import subprocess
 import soundfile as sf
 from typing import Union, BinaryIO, Tuple, List, Optional, Callable
 import numpy as np
-import gradio as gr
 
-from modules.whisper.base_transcription_pipeline import BaseTranscriptionPipeline
 from modules.whisper.data_classes import Segment, Word, TranscriptionPipelineParams, WhisperParams
+from modules.utils.constants import (
+    AUTOMATIC_DETECTION,
+    GRADIO_NONE_NUMBER_MAX,
+    GRADIO_NONE_NUMBER_MIN,
+    GRADIO_NONE_STR,
+)
 from modules.utils.logger import get_logger
 
 logger = get_logger()
 
 
-class ModalWhisperInference(BaseTranscriptionPipeline):
+class ModalWhisperInference:
     """
     Transcription pipeline implementation that delegates GPU inference to Modal serverless endpoint.
     """
@@ -25,7 +29,7 @@ class ModalWhisperInference(BaseTranscriptionPipeline):
                  endpoint_url: Optional[str] = None,
                  output_dir: str = "outputs",
                  **kwargs):
-        super().__init__(output_dir=output_dir)
+        self.output_dir = output_dir
         raw_url = endpoint_url or os.environ.get("MODAL_WEB_ENDPOINT_URL") or "https://revigefarta--whizzper-backend-transcribe-endpoint.modal.run"
         if "," in raw_url:
             self.endpoint_url = raw_url.split(",")[0].strip()
@@ -34,18 +38,20 @@ class ModalWhisperInference(BaseTranscriptionPipeline):
         self.device = "modal-gpu"
         self.available_models = ["tiny", "base", "small", "medium", "large", "large-v1", "large-v2", "large-v3"]
         self.available_compute_types = ["float16", "int8", "float32"]
+        self.current_model_size = None
+        self.current_compute_type = None
 
     def update_model(self,
                      model_size: str,
                      compute_type: str,
-                     progress: gr.Progress = gr.Progress()):
+                     progress=None):
         self.current_model_size = model_size
         self.current_compute_type = compute_type
         logger.info(f"Modal pipeline set to model: {model_size}, compute_type: {compute_type}")
 
     def transcribe(self,
                    audio: Union[str, BinaryIO, np.ndarray],
-                   progress: gr.Progress = gr.Progress(),
+                   progress=None,
                    progress_callback: Optional[Callable] = None,
                    *whisper_params) -> Tuple[List[Segment], float]:
         """Direct transcribe call fallback"""
@@ -53,9 +59,29 @@ class ModalWhisperInference(BaseTranscriptionPipeline):
         pipeline_params = TranscriptionPipelineParams(whisper=params)
         return self.run(audio, progress, "SRT", True, progress_callback, *pipeline_params.to_list())
 
+    @staticmethod
+    def validate_gradio_values(params: TranscriptionPipelineParams) -> TranscriptionPipelineParams:
+        if params.whisper.lang == AUTOMATIC_DETECTION:
+            params.whisper.lang = None
+        if params.whisper.initial_prompt == GRADIO_NONE_STR:
+            params.whisper.initial_prompt = None
+        if params.whisper.prefix == GRADIO_NONE_STR:
+            params.whisper.prefix = None
+        if params.whisper.hotwords == GRADIO_NONE_STR:
+            params.whisper.hotwords = None
+        if params.whisper.max_new_tokens == GRADIO_NONE_NUMBER_MIN:
+            params.whisper.max_new_tokens = None
+        if params.whisper.hallucination_silence_threshold == GRADIO_NONE_NUMBER_MIN:
+            params.whisper.hallucination_silence_threshold = None
+        if params.whisper.language_detection_threshold == GRADIO_NONE_NUMBER_MIN:
+            params.whisper.language_detection_threshold = None
+        if params.vad.max_speech_duration_s == GRADIO_NONE_NUMBER_MAX:
+            params.vad.max_speech_duration_s = float("inf")
+        return params
+
     def run(self,
             audio: Union[str, BinaryIO, np.ndarray],
-            progress: gr.Progress = gr.Progress(),
+            progress=None,
             file_format: str = "SRT",
             add_timestamp: bool = True,
             progress_callback: Optional[Callable] = None,
@@ -63,6 +89,9 @@ class ModalWhisperInference(BaseTranscriptionPipeline):
         """
         Send audio payload to Modal endpoint for remote GPU inference.
         """
+        if progress is None:
+            progress = lambda *args, **kwargs: None
+
         if not self.endpoint_url:
             raise ValueError(
                 "Modal endpoint URL is not configured. Please set MODAL_WEB_ENDPOINT_URL environment variable."
