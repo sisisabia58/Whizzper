@@ -35,3 +35,23 @@ def test_modal_whisper_inference_has_no_base_pipeline_import():
 def test_whisper_factory_does_not_import_torch_at_module_level():
     roots = _top_level_roots("modules/whisper/whisper_factory.py")
     assert "torch" not in roots
+
+
+def test_requirements_railway_omits_gpu_stack():
+    lines = [
+        ln.strip().lower().split("==")[0].split(">=")[0].split("[")[0]
+        for ln in Path("requirements-railway.txt").read_text().splitlines()
+        if ln.strip() and not ln.strip().startswith("#") and not ln.strip().startswith("--")
+    ]
+    forbidden = {
+        "torch",
+        "torchaudio",
+        "openai-whisper",
+        "faster-whisper",
+        "transformers",
+        "pyannote.audio",
+        "gradio",
+        "gradio-i18n",
+        "matplotlib",
+    }
+    assert not (set(lines) & forbidden)

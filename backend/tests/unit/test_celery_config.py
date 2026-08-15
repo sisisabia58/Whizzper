@@ -18,7 +18,7 @@ def test_visibility_timeout_exceeds_time_limit():
 
 def test_worker_max_tasks_per_child_defaults_conservative():
     from backend.queue.celery_app import celery_app
-    assert celery_app.conf.worker_max_tasks_per_child == 50
+    assert celery_app.conf.worker_max_tasks_per_child == 10
 
 
 def test_worker_max_memory_per_child_unset():
