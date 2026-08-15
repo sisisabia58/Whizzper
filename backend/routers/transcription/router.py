@@ -7,13 +7,11 @@ from fastapi import (
     UploadFile,
 )
 from fastapi import APIRouter, Depends, Response, status, Body
-from typing import List, Dict
+from typing import List, Dict, Optional
 from sqlalchemy.orm import Session
 from datetime import datetime
 from modules.whisper.data_classes import *
 from modules.utils.paths import BACKEND_CACHE_DIR
-from modules.whisper.faster_whisper_inference import FasterWhisperInference
-from modules.whisper.base_transcription_pipeline import BaseTranscriptionPipeline
 from backend.common.progress import NO_OP_PROGRESS
 from backend.common.audio import read_audio
 from backend.common.models import QueueResponse
@@ -49,7 +47,7 @@ def create_progress_callback(identifier: str):
 
 
 @functools.lru_cache
-def get_pipeline(endpoint_url: Optional[str] = None) -> 'BaseTranscriptionPipeline':
+def get_pipeline(endpoint_url: Optional[str] = None):
     import os
     from modules.whisper.whisper_factory import WhisperFactory
     config = load_server_config()["whisper"]
