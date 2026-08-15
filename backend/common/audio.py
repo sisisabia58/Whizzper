@@ -1,7 +1,7 @@
+import subprocess
 from io import BytesIO
 import numpy as np
 import httpx
-import faster_whisper
 from pydantic import BaseModel
 from fastapi import (
     HTTPException,
@@ -12,6 +12,34 @@ from typing import Annotated, Any, BinaryIO, Literal, Generator, Union, Optional
 
 class AudioInfo(BaseModel):
     duration: float
+
+
+def decode_audio_bytes(file_content: bytes) -> np.ndarray:
+    proc = subprocess.run(
+        [
+            "ffmpeg",
+            "-nostdin",
+            "-i",
+            "pipe:0",
+            "-f",
+            "f32le",
+            "-acodec",
+            "pcm_f32le",
+            "-ac",
+            "1",
+            "-ar",
+            "16000",
+            "pipe:1",
+        ],
+        input=file_content,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    if proc.returncode != 0 or not proc.stdout:
+        raise HTTPException(status_code=422, detail="Could not decode audio")
+    audio = np.frombuffer(proc.stdout, dtype=np.float32)
+    return audio
 
 
 async def read_audio(
@@ -30,7 +58,6 @@ async def read_audio(
         if file_response.status_code != 200:
             raise HTTPException(status_code=422, detail="Could not download the file")
         file_content = file_response.content
-    file_bytes = BytesIO(file_content)
-    audio = faster_whisper.audio.decode_audio(file_bytes)
+    audio = decode_audio_bytes(file_content)
     duration = len(audio) / 16000
     return audio, AudioInfo(duration=duration)
