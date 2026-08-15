@@ -4,14 +4,13 @@ from fastapi import (
     File,
     UploadFile,
 )
-from fastapi import APIRouter, BackgroundTasks, Depends, Response, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response, status
 from fastapi.responses import FileResponse
 from typing import List, Dict, Tuple
 from datetime import datetime
 import os
 
 from modules.whisper.data_classes import *
-from modules.uvr.music_separator import MusicSeparator
 from modules.utils.paths import BACKEND_CACHE_DIR
 from backend.common.progress import NO_OP_PROGRESS
 from backend.common.audio import read_audio
@@ -27,7 +26,8 @@ bgm_separation_router = APIRouter(prefix="/bgm-separation", tags=["BGM Separatio
 
 
 @functools.lru_cache
-def get_bgm_separation_inferencer() -> 'MusicSeparator':
+def get_bgm_separation_inferencer():
+    from modules.uvr.music_separator import MusicSeparator
     config = load_server_config()["bgm_separation"]
     inferencer = MusicSeparator(
         output_dir=os.path.join(BACKEND_CACHE_DIR, "UVR")
@@ -100,6 +100,14 @@ async def bgm_separation(
         audio, info = await read_audio(file=file)
     else:
         audio, info = file, None
+
+    try:
+        get_bgm_separation_inferencer()
+    except ImportError as exc:
+        raise HTTPException(
+            status_code=501,
+            detail="Local BGM separation is not installed on this host; use Modal transcription.",
+        ) from exc
 
     identifier = add_task_to_db(
         status=TaskStatus.QUEUED,

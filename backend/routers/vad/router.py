@@ -1,16 +1,14 @@
 import functools
 import os
 import numpy as np
-from faster_whisper.vad import VadOptions
 from fastapi import (
     File,
     UploadFile,
 )
-from fastapi import APIRouter, BackgroundTasks, Depends, Response, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response, status
 from typing import List, Dict
 from datetime import datetime
 
-from modules.vad.silero_vad import SileroVAD
 from modules.whisper.data_classes import VadParams
 from backend.common.audio import read_audio
 from backend.common.models import QueueResponse
@@ -21,9 +19,9 @@ vad_router = APIRouter(prefix="/vad", tags=["Voice Activity Detection"])
 
 
 @functools.lru_cache
-def get_vad_model() -> SileroVAD:
+def get_vad_model():
+    from modules.vad.silero_vad import SileroVAD
     inferencer = SileroVAD()
-    # Skip loading model weights on CPU-only hosts where Modal handles all inference
     if not os.environ.get("MODAL_WEB_ENDPOINT_URL"):
         inferencer.update_model()
     return inferencer
@@ -31,7 +29,7 @@ def get_vad_model() -> SileroVAD:
 
 def run_vad(
     audio: np.ndarray,
-    params: VadOptions,
+    params,
     identifier: str,
 ) -> List[Dict]:
     update_task_status_in_db(
@@ -81,6 +79,15 @@ async def vad(
     else:
         audio, info = file, None
 
+    try:
+        get_vad_model()
+    except ImportError as exc:
+        raise HTTPException(
+            status_code=501,
+            detail="Local VAD is not installed on this host; use Modal transcription.",
+        ) from exc
+
+    from faster_whisper.vad import VadOptions
     vad_options = VadOptions(
         threshold=params.threshold,
         min_speech_duration_ms=params.min_speech_duration_ms,
