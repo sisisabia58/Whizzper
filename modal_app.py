@@ -38,7 +38,8 @@ whizzper_image = (
         "pyyaml",
         "ruamel.yaml",
         "yt-dlp[default,curl-cffi]",
-        "gradio-i18n"
+        "gradio==5.29.0",
+        "gradio-i18n==0.3.1",
     )
     .pip_install(
         "git+https://github.com/jhj0517/ultimatevocalremover_api.git",
@@ -153,11 +154,14 @@ def run_transcription_gpu(
             bgm_separation=bgm_p
         )
 
-        import gradio as gr
+        class _NoOpProgress:
+            def __call__(self, *args, **kwargs):
+                return None
+
         print(f"Running pipeline.run on GPU for {tmp_audio_path} with model {whisper_p.model_size}...", flush=True)
         segments, elapsed_time = pipeline.run(
             tmp_audio_path,
-            gr.Progress(),
+            _NoOpProgress(),
             "SRT",
             True,
             None,
@@ -218,17 +222,25 @@ async def transcribe_endpoint(request: Request) -> Dict[str, Any]:
         raise HTTPException(status_code=400, detail=f"Bad Request: {str(ex)}")
 
     audio_bytes = base64.b64decode(req.audio_base64)
-    return await run_transcription_gpu.remote.aio(
-        audio_bytes=audio_bytes,
-        file_name=req.file_name or "audio.wav",
-        whisper_type=req.whisper_type or "faster-whisper",
-        model_size=req.model_size or "large-v2",
-        lang=req.lang,
-        is_translate=bool(req.is_translate),
-        beam_size=req.beam_size or 5,
-        compute_type=req.compute_type or "float16",
-        vad_filter=req.vad_filter or "False",
-        is_diarize=req.is_diarize or "False",
-        hf_token=req.hf_token or "",
-        is_separate_bgm=req.is_separate_bgm or "False"
-    )
+    try:
+        return await run_transcription_gpu.remote.aio(
+            audio_bytes=audio_bytes,
+            file_name=req.file_name or "audio.wav",
+            whisper_type=req.whisper_type or "faster-whisper",
+            model_size=req.model_size or "large-v2",
+            lang=req.lang,
+            is_translate=bool(req.is_translate),
+            beam_size=req.beam_size or 5,
+            compute_type=req.compute_type or "float16",
+            vad_filter=req.vad_filter or "False",
+            is_diarize=req.is_diarize or "False",
+            hf_token=req.hf_token or "",
+            is_separate_bgm=req.is_separate_bgm or "False"
+        )
+    except Exception as e:
+        tb = traceback.format_exc()
+        print(f"Modal GPU remote failed:\n{tb}", flush=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"GPU Inference Error: {type(e).__name__}: {e}",
+        ) from e
