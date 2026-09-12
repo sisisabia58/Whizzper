@@ -45,6 +45,7 @@ whizzper_image = (
         "git+https://github.com/jhj0517/ultimatevocalremover_api.git",
         "git+https://github.com/jhj0517/pyrubberband.git"
     )
+    .env({"PYTHONPATH": "/root"})
     .add_local_dir("modules", remote_path="/root/modules")
     .add_local_dir("configs", remote_path="/root/configs")
 )
@@ -85,9 +86,90 @@ def get_pipeline():
     return _pipeline_cache["pipeline"]
 
 
+def _format_segment(s: Any) -> Dict[str, Any]:
+    words = None
+    if hasattr(s, "words") and s.words:
+        words = [
+            {
+                "start": w.start,
+                "end": w.end,
+                "word": w.word,
+                "probability": getattr(w, "probability", None),
+            }
+            for w in s.words
+        ]
+    return {
+        "id": getattr(s, "id", None),
+        "seek": getattr(s, "seek", None),
+        "text": getattr(s, "text", None),
+        "start": getattr(s, "start", None),
+        "end": getattr(s, "end", None),
+        "tokens": getattr(s, "tokens", None),
+        "temperature": getattr(s, "temperature", None),
+        "avg_logprob": getattr(s, "avg_logprob", None),
+        "compression_ratio": getattr(s, "compression_ratio", None),
+        "no_speech_prob": getattr(s, "no_speech_prob", None),
+        "words": words,
+    }
+
+
+def _transcribe_direct(
+    tmp_audio_path: str,
+    model_size: str,
+    lang: Optional[str],
+    is_translate: bool,
+    beam_size: int,
+    compute_type: str,
+    vad_filter: bool,
+) -> Dict[str, Any]:
+    """faster-whisper only — no Gradio / UVR / pyannote import graph."""
+    import time
+    import torch
+    import faster_whisper
+
+    cuda_libs = "/usr/local/lib/python3.10/site-packages/nvidia/cublas/lib:/usr/local/lib/python3.10/site-packages/nvidia/cudnn/lib"
+    os.environ["LD_LIBRARY_PATH"] = f"{cuda_libs}:{os.environ.get('LD_LIBRARY_PATH', '')}"
+
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    ct = compute_type or "float16"
+    if device == "cpu" and ct in ("float16", "int8_float16"):
+        ct = "int8"
+    print(
+        f"direct whisper model={model_size} device={device} compute_type={ct} cuda={torch.cuda.is_available()}",
+        flush=True,
+    )
+
+    model_dir = os.path.join(CACHE_DIR, "whisper")
+    os.makedirs(model_dir, exist_ok=True)
+    cache_key = f"{model_size}:{device}:{ct}"
+    model = _pipeline_cache.get(cache_key)
+    if model is None:
+        model = faster_whisper.WhisperModel(
+            model_size,
+            device=device,
+            compute_type=ct,
+            download_root=model_dir,
+        )
+        _pipeline_cache[cache_key] = model
+
+    start = time.time()
+    segments_iter, _info = model.transcribe(
+        tmp_audio_path,
+        language=lang,
+        task="translate" if is_translate else "transcribe",
+        beam_size=beam_size or 5,
+        vad_filter=vad_filter,
+        word_timestamps=True,
+    )
+    formatted = [_format_segment(s) for s in segments_iter]
+    elapsed = time.time() - start
+    print(f"direct whisper done segments={len(formatted)} elapsed={elapsed:.2f}s", flush=True)
+    return {"segments": formatted, "elapsed_time": elapsed}
+
+
 @app.function(
     image=whizzper_image,
-    gpu="T4",
+    gpu=["T4", "L4", "A10", "any"],
     timeout=600,
     max_containers=10,
     volumes={CACHE_DIR: models_volume},
@@ -110,16 +192,12 @@ def run_transcription_gpu(
     """
     Direct Modal function for GPU transcription (bypasses HTTP limits via binary gRPC stream).
     """
-    # Set LD_LIBRARY_PATH to include nvidia cublas and cudnn shared objects for CTranslate2
-    import os
-    cuda_libs = "/usr/local/lib/python3.10/site-packages/nvidia/cublas/lib:/usr/local/lib/python3.10/site-packages/nvidia/cudnn/lib"
-    os.environ["LD_LIBRARY_PATH"] = f"{cuda_libs}:{os.environ.get('LD_LIBRARY_PATH', '')}"
-
-    from modules.whisper.faster_whisper_inference import FasterWhisperInference
-    from modules.whisper.data_classes import (
-        TranscriptionPipelineParams, WhisperParams, VadParams,
-        DiarizationParams, BGMSeparationParams
-    )
+    lang_val = lang
+    if lang_val in ("automatic detection", "AUTO", "", "none", "None", "null"):
+        lang_val = None
+    want_diarize = str(is_diarize).lower() in ("true", "1")
+    want_bgm = str(is_separate_bgm).lower() in ("true", "1")
+    want_vad = str(vad_filter).lower() in ("true", "1")
 
     suffix = os.path.splitext(file_name)[1] if file_name else ".mp3"
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp_file:
@@ -127,38 +205,47 @@ def run_transcription_gpu(
         tmp_audio_path = tmp_file.name
 
     try:
+        if not want_diarize and not want_bgm:
+            return _transcribe_direct(
+                tmp_audio_path=tmp_audio_path,
+                model_size=model_size or "large-v2",
+                lang=lang_val,
+                is_translate=bool(is_translate),
+                beam_size=beam_size or 5,
+                compute_type=compute_type or "float16",
+                vad_filter=want_vad,
+            )
+
+        cuda_libs = "/usr/local/lib/python3.10/site-packages/nvidia/cublas/lib:/usr/local/lib/python3.10/site-packages/nvidia/cudnn/lib"
+        os.environ["LD_LIBRARY_PATH"] = f"{cuda_libs}:{os.environ.get('LD_LIBRARY_PATH', '')}"
+
+        from modules.whisper.data_classes import (
+            TranscriptionPipelineParams, WhisperParams, VadParams,
+            DiarizationParams, BGMSeparationParams
+        )
+
         pipeline = get_pipeline()
-
-        lang_val = lang
-        if lang_val in ("automatic detection", "AUTO", "", "none", "None", "null"):
-            lang_val = None
-
-        whisper_p = WhisperParams(
-            model_size=model_size or "large-v2",
-            lang=lang_val,
-            is_translate=bool(is_translate),
-            beam_size=beam_size or 5,
-            compute_type=compute_type or "float16"
-        )
-        vad_p = VadParams(vad_filter=str(vad_filter).lower() in ("true", "1"))
-        diar_p = DiarizationParams(
-            is_diarize=str(is_diarize).lower() in ("true", "1"),
-            hf_token=hf_token or os.environ.get("HF_TOKEN", "")
-        )
-        bgm_p = BGMSeparationParams(is_separate_bgm=str(is_separate_bgm).lower() in ("true", "1"))
-
         pipeline_params = TranscriptionPipelineParams(
-            whisper=whisper_p,
-            vad=vad_p,
-            diarization=diar_p,
-            bgm_separation=bgm_p
+            whisper=WhisperParams(
+                model_size=model_size or "large-v2",
+                lang=lang_val,
+                is_translate=bool(is_translate),
+                beam_size=beam_size or 5,
+                compute_type=compute_type or "float16",
+            ),
+            vad=VadParams(vad_filter=want_vad),
+            diarization=DiarizationParams(
+                is_diarize=want_diarize,
+                hf_token=hf_token or os.environ.get("HF_TOKEN", ""),
+            ),
+            bgm_separation=BGMSeparationParams(is_separate_bgm=want_bgm),
         )
 
         class _NoOpProgress:
             def __call__(self, *args, **kwargs):
                 return None
 
-        print(f"Running pipeline.run on GPU for {tmp_audio_path} with model {whisper_p.model_size}...", flush=True)
+        print(f"Running pipeline.run on GPU for {tmp_audio_path} with model {model_size}...", flush=True)
         segments, elapsed_time = pipeline.run(
             tmp_audio_path,
             _NoOpProgress(),
@@ -168,34 +255,14 @@ def run_transcription_gpu(
             *pipeline_params.to_list()
         )
         print(f"Transcription succeeded! Got {len(segments)} segments in {elapsed_time:.2f}s", flush=True)
-
-        formatted_segments = []
-        for s in segments:
-            words = None
-            if hasattr(s, "words") and s.words:
-                words = [{"start": w.start, "end": w.end, "word": w.word, "probability": getattr(w, "probability", None)} for w in s.words]
-            formatted_segments.append({
-                "id": getattr(s, "id", None),
-                "seek": getattr(s, "seek", None),
-                "text": getattr(s, "text", None),
-                "start": getattr(s, "start", None),
-                "end": getattr(s, "end", None),
-                "tokens": getattr(s, "tokens", None),
-                "temperature": getattr(s, "temperature", None),
-                "avg_logprob": getattr(s, "avg_logprob", None),
-                "compression_ratio": getattr(s, "compression_ratio", None),
-                "no_speech_prob": getattr(s, "no_speech_prob", None),
-                "words": words
-            })
-
         return {
-            "segments": formatted_segments,
-            "elapsed_time": elapsed_time
+            "segments": [_format_segment(s) for s in segments],
+            "elapsed_time": elapsed_time,
         }
     except Exception as e:
         tb = traceback.format_exc()
         print(f"Error during Modal GPU inference:\n{tb}", flush=True)
-        raise RuntimeError(f"GPU Inference Error: {str(e)}")
+        raise RuntimeError(f"GPU Inference Error: {type(e).__name__}: {e}") from e
     finally:
         if os.path.exists(tmp_audio_path):
             os.remove(tmp_audio_path)
